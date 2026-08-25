@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GripVertical, Hammer, Minus, Plus, X } from 'lucide-react';
+import { Clock3, GripVertical, Hammer, Minus, Plus, X } from 'lucide-react';
+import { craftEtaHours, type ArchiveRates } from '@core/history-stats.ts';
+import { useArchiveRates } from '@/features/recipes/useArchiveRates';
 import { iconUrl, qualityColor } from '@core/items.ts';
 import type { RecipeTarget } from '@core/ipc.ts';
 import type { RequirementProgress } from '@core/recipes.ts';
@@ -10,6 +12,8 @@ import { useContentSize } from '@/shell/useContentSize';
 import { useOverlay } from '@/shell/useOverlay';
 import { cn } from '@/lib/utils';
 import { ItemPicker } from './ItemPicker';
+import { t, tf } from '@core/i18n.ts';
+
 
 /*
  * Tile geometry, in one place because it is one decision.
@@ -76,6 +80,7 @@ export function RecipeOverlay() {
   const expanded = useMemo(() => new Set(config?.recipeExpand ?? []), [config]);
   const { groups, craftable, graph } = useRecipes(targets, state.items, ticked, expanded);
   const [picking, setPicking] = useState(false);
+  const rates = useArchiveRates();
   const column = useRef<HTMLDivElement | null>(null);
 
   // The picker is a panel the size of a dialog; leaving it open behind the game
@@ -165,6 +170,7 @@ export function RecipeOverlay() {
           group={group}
           interactive={interactive}
           craftable={craftable}
+          rates={rates}
           onAdjust={adjust}
           onToggle={toggleTicked}
           onExpand={toggleExpanded}
@@ -179,8 +185,8 @@ export function RecipeOverlay() {
           <button
             type="button"
             onClick={() => setPicking(true)}
-            title="Add a recipe or an item"
-            aria-label="Add a recipe or an item"
+            title={t('Add a recipe or an item')}
+            aria-label={t('Add a recipe or an item')}
             className={cn(
               CHIP,
               'flex flex-1 items-center justify-center gap-1 px-2 py-0.5 text-[0.625rem] text-muted-foreground hover:text-foreground',
@@ -204,10 +210,25 @@ export function RecipeOverlay() {
  * decided by whatever needs it, so the only thing to say about it is whether
  * to make it at all — which is the ×.
  */
+/**
+ * Hours as something you can read at a glance while playing.
+ *
+ * Rounded to five minutes above an hour: the estimate is built from a handful
+ * of drops and is not accurate to the minute, and printing "2 h 37 m" claims a
+ * precision the data does not have.
+ */
+function etaLabel(hours: number): string {
+  const total = Math.max(1, Math.round(hours * 60));
+  if (total < 60) return tf('~{0} m', total);
+  const rounded = Math.round(total / 5) * 5;
+  return tf('~{0} h {1} m', Math.floor(rounded / 60), rounded % 60);
+}
+
 function Line({
   group,
   interactive,
   craftable,
+  rates,
   onAdjust,
   onToggle,
   onExpand,
@@ -215,12 +236,28 @@ function Line({
   group: RecipeGroup;
   interactive: boolean;
   craftable: (id: string) => boolean;
+  /** Drop rates from the archive, or null when there is no archive to read. */
+  rates: ArchiveRates | null;
   onAdjust: (id: string, by: number) => void;
   onToggle: (id: string) => void;
   onExpand: (id: string) => void;
 }) {
   const { id, count, derived, rows, complete } = group;
   const info = itemTable.get(id);
+
+  /*
+   * How long the rest of this should take.
+   *
+   * Only what is actually still missing, and only from what has actually
+   * dropped before — `craftEtaHours` returns null the moment one ingredient
+   * has no history, which is the honest answer rather than an estimate built
+   * on a number nobody has.
+   */
+  const eta = useMemo(() => {
+    if (rates === null || complete) return null;
+    const missing = rows.filter((row) => !row.done).map((row) => ({ id: row.id, count: row.count - row.have }));
+    return craftEtaHours(rates, missing);
+  }, [rates, complete, rows]);
 
   return (
     <div
@@ -261,10 +298,23 @@ function Line({
           row={row}
           interactive={interactive}
           craftable={craftable(row.id)}
+          rates={rates}
           onToggle={onToggle}
           onExpand={onExpand}
         />
       ))}
+
+      {/* Drawn in both modes, unlike the controls beside it: this is something
+          to read while playing, which is the only time the answer matters. */}
+      {eta !== null && (
+        <span
+          className={cn(CHIP, 'ms-1 flex shrink-0 items-center gap-1 self-center px-1 py-0.5 text-[0.5625rem]')}
+          title={t('At the rate these have dropped for you so far')}
+        >
+          <Clock3 className="size-2.5 text-muted-foreground" />
+          <span className="tabular-nums text-foreground">{etaLabel(eta)}</span>
+        </span>
+      )}
 
       <span
         className={cn(
@@ -277,8 +327,8 @@ function Line({
           <button
             type="button"
             onClick={() => onExpand(id)}
-            aria-label={`Do not craft ${info.name}`}
-            title="Stop making this — count it as a material instead"
+            aria-label={tf('Do not craft {0}', info.name)}
+            title={t('Stop making this — count it as a material instead')}
             className="text-muted-foreground hover:text-destructive"
           >
             <X className="size-3.5" />
@@ -288,8 +338,8 @@ function Line({
             <button
               type="button"
               onClick={() => onAdjust(id, -1)}
-              aria-label={count > 1 ? `One fewer ${info.name}` : `Remove ${info.name}`}
-              title={count > 1 ? 'One fewer' : 'Remove'}
+              aria-label={count > 1 ? tf('One fewer {0}', info.name) : tf('Remove {0}', info.name)}
+              title={count > 1 ? t('One fewer') : t('Remove')}
               className="text-muted-foreground hover:text-destructive"
             >
               <Minus className="size-3.5" />
@@ -297,8 +347,8 @@ function Line({
             <button
               type="button"
               onClick={() => onAdjust(id, 1)}
-              aria-label={`One more ${info.name}`}
-              title="One more"
+              aria-label={tf('One more {0}', info.name)}
+              title={t('One more')}
               className="text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3.5" />
@@ -337,6 +387,7 @@ function IngredientTile({
   row,
   interactive,
   craftable,
+  rates,
   onToggle,
   onExpand,
 }: {
@@ -344,11 +395,28 @@ function IngredientTile({
   interactive: boolean;
   /** It has a recipe, so it is only a material here because the player said so. */
   craftable: boolean;
+  rates: ArchiveRates | null;
   onToggle: (id: string) => void;
   onExpand: (id: string) => void;
 }) {
   const info = itemTable.get(row.id);
   const shown = Math.min(row.have, row.count);
+
+  /*
+   * How often this one actually turns up, on the tooltip rather than the tile.
+   *
+   * The tile is 4 rem wide and already carries an icon, a count and a name;
+   * a rate on its face would be the fourth thing competing for it. On hover it
+   * costs nothing and answers the question the panel raises but does not
+   * otherwise settle — is this the piece that is holding everything up.
+   */
+  const rate = rates?.byItem.get(row.id) ?? null;
+  const pace =
+    rate === null || !Number.isFinite(rate.hoursEach)
+      ? null
+      : rate.hoursEach >= 1
+        ? tf('about one every {0} h', Math.round(rate.hoursEach * 10) / 10)
+        : tf('about {0} an hour', Math.round(rate.perHour * 10) / 10);
 
   return (
     <span className="relative">
@@ -359,8 +427,8 @@ function IngredientTile({
         <button
           type="button"
           onClick={() => onExpand(row.id)}
-          aria-label={`Craft ${info.name} instead`}
-          title="Craft this instead — give it a line of its own"
+          aria-label={tf('Craft {0} instead', info.name)}
+          title={t('Craft this instead — give it a line of its own')}
           className={cn(CHIP, 'absolute -start-1 -top-1 z-10 p-0.5 text-muted-foreground hover:text-foreground')}
         >
           <Hammer className="size-4" />
@@ -371,8 +439,13 @@ function IngredientTile({
       onClick={() => onToggle(row.id)}
       // Not disabled while click-through: the window itself is transparent to
       // the mouse, and a disabled button would only dim the text as well.
-      title={interactive ? `${info.name} ${row.have}/${row.count} — click to tick off` : `${info.name}`}
-      aria-label={`${info.name}, ${row.have} of ${row.count}`}
+      title={[
+        interactive ? tf('{0} {1}/{2} — click to tick off', info.name, row.have, row.count) : info.name,
+        pace,
+      ]
+        .filter(Boolean)
+        .join('\n')}
+      aria-label={tf('{0}, {1} of {2}', info.name, row.have, row.count)}
       aria-pressed={row.done}
       className={cn('rounded', interactive && 'hover:bg-white/10')}
     >

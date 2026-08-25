@@ -1,6 +1,9 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, type Tray } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { setLanguage, t, tf } from '../core/i18n.ts';
+import { applySetup, logFileFromLaunchOptions, readSetup } from './setup.ts';
+import { MarketWatcher } from './market.ts';
 import type { TrackerEvent } from '../core/events.ts';
 import {
   OPACITY,
@@ -15,7 +18,7 @@ import {
 } from '../core/ipc.ts';
 import { compactLog, type CompactResult } from '../core/sources/logfile.ts';
 import { byRoom } from '../core/stats.ts';
-import { applyArgs, clamp, loadConfig, saveConfig } from './config.ts';
+import { applyArgs, clamp, DEFAULTS, loadConfig, saveConfig } from './config.ts';
 import { History } from './history.ts';
 import { Overlay } from './overlay.ts';
 import { SourceFeed } from './sources.ts';
@@ -43,6 +46,7 @@ let feedStarted = false;
 
 const overlays = new Map<OverlayId, Overlay>();
 const each = (fn: (overlay: Overlay) => void) => overlays.forEach(fn);
+const market = new MarketWatcher();
 
 /** Broadcasts to every overlay: they all watch the same session. */
 const broadcast = (channel: string, payload: unknown) => each((overlay) => overlay.send(channel, payload));
@@ -193,6 +197,43 @@ function bind(accelerator: string, handler: () => void): void {
   unavailableHotkeys.push(accelerator);
 }
 
+/** The click-through key as actually registered, or '' when nothing took. */
+let boundHotkey = '';
+
+/**
+ * Move the click-through hotkey to another combination.
+ *
+ * The old one is released first, and unconditionally: `globalShortcut` refuses
+ * a combination that is already taken — including one taken by this very
+ * process — so rebinding without releasing would fail on every key the app had
+ * ever successfully bound, including the one being replaced.
+ *
+ * A refusal is reported rather than swallowed. This is the only key that makes
+ * the overlay clickable at all, so silently keeping the old one would leave
+ * the player pressing a combination that does nothing and no way to find out
+ * why. Returning false lets the caller say so and put the old key back.
+ */
+function rebindHotkey(next: string): boolean {
+  if (boundHotkey !== '') globalShortcut.unregister(boundHotkey);
+
+  if (globalShortcut.register(next, () => setInteractive(!interactive))) {
+    boundHotkey = next;
+    // It works now, so an earlier complaint about it is stale.
+    const stale = unavailableHotkeys.indexOf(next);
+    if (stale >= 0) unavailableHotkeys.splice(stale, 1);
+    return true;
+  }
+
+  // Nothing is bound now — not even what was there before, since it was
+  // released above. Try to put it back so the overlay stays reachable.
+  boundHotkey = '';
+  if (!unavailableHotkeys.includes(next)) unavailableHotkeys.push(next);
+  if (config.hotkey !== next && globalShortcut.register(config.hotkey, () => setInteractive(!interactive))) {
+    boundHotkey = config.hotkey;
+  }
+  return false;
+}
+
 /**
  * One tracker at a time.
  *
@@ -225,6 +266,22 @@ app.whenReady().then(() => {
   if (!single) return;
 
   config = loadConfig();
+  setLanguage(config.language);
+
+  /*
+   * Adopt the log Steam is already pointing Dota at.
+   *
+   * Only when the player has not chosen one themselves — the shipped default
+   * standing untouched is what "has not chosen" looks like — so this can
+   * correct a fresh install without ever overriding a deliberate answer. It
+   * runs before the tail opens anything, which is the whole point: the
+   * alternative is an overlay reading an empty file and looking broken.
+   */
+  if (config.logFile === DEFAULTS.logFile) {
+    const fromSteam = logFileFromLaunchOptions();
+    if (fromSteam !== null && fromSteam !== config.logFile) config.logFile = fromSteam;
+  }
+
   history = new History();
   const cli = applyArgs(config, process.argv.slice(1));
 
@@ -251,7 +308,11 @@ app.whenReady().then(() => {
 
   interactive = cli.interactive;
 
-  for (const id of OVERLAY_IDS) overlays.set(id, new Overlay(id, { config: () => config, save }));
+  // Not the market lens: that window is the watcher's, created in market.ts
+  // with its own rules — display-sized, never movable, never interactive.
+  for (const id of OVERLAY_IDS) {
+    if (id !== 'market') overlays.set(id, new Overlay(id, { config: () => config, save }));
+  }
 
   // Broadcast rather than returned, so a check started from one window is
   // visible in another — and so the settings window, which is opened on demand
@@ -297,7 +358,11 @@ app.whenReady().then(() => {
 
   tray = createTray({ overlays: [...overlays.values()], hotkey: () => config.hotkey, onCreated: onReady });
 
+  if (config.market.enabled) market.start();
+
   bind(config.hotkey, () => setInteractive(!interactive));
+  // Remembered so a later rebind knows what to release.
+  if (!unavailableHotkeys.includes(config.hotkey)) boundHotkey = config.hotkey;
   // Scale is reachable without the overlay having focus, because normally it
   // has none — it is click-through until the hotkey says otherwise.
   bind('Control+Alt+=', () => setScale(config.uiScale + UI_SCALE.step));
@@ -320,11 +385,41 @@ app.whenReady().then(() => {
     const restart =
       (patch.source !== undefined && patch.source !== config.source) ||
       (patch.logFile !== undefined && patch.logFile !== config.logFile);
+    // Kept from before the spread: a rebind that the system refuses has to put
+    // this back, and by then `config` already holds the key that failed.
+    const previousHotkey = config.hotkey;
     config = { ...config, ...patch };
+    // Main has its own strings — the tray, the file dialogs, the update box —
+    // and its own copy of the dictionary to say them from.
+    if (patch.language !== undefined) setLanguage(config.language);
+    // The watcher follows its switch immediately: flipping it off has to stop
+    // the capture loop now, not on the next launch.
+    if (patch.market !== undefined) {
+      if (config.market.enabled) market.start();
+      else market.stop();
+    }
     // Opacity is the renderer's business now — it tints the panel rather than
     // the window — so there is nothing to push at the window here.
     if (patch.opacity !== undefined) config.opacity = clamp(patch.opacity, OPACITY.min, OPACITY.max);
     if (patch.uiScale !== undefined) config.uiScale = clamp(patch.uiScale, UI_SCALE.min, UI_SCALE.max);
+    /*
+     * A key the system would not give us is not a key worth saving: the config
+     * would then name a combination that does nothing, and the next launch
+     * would bind nothing at all. So the old one is kept and the failure is
+     * reported, which is the only way the player learns the key was taken.
+     */
+    if (patch.hotkey !== undefined && patch.hotkey !== previousHotkey) {
+      if (!rebindHotkey(patch.hotkey)) {
+        config.hotkey = previousHotkey;
+        each((overlay) =>
+          overlay.send('tracker:status', {
+            source: config.source,
+            detail: tf('{0} is taken by something else', patch.hotkey ?? ''),
+            error: true,
+          }),
+        );
+      }
+    }
     save();
     // A different source is a different session: mock runs must never average
     // in with real ones.
@@ -385,9 +480,9 @@ app.whenReady().then(() => {
   ipcMain.handle('tracker:pickSound', async (e): Promise<string | null> => {
     const parent = BrowserWindow.fromWebContents(e.sender);
     const options: Electron.OpenDialogOptions = {
-      title: 'Choose a sound',
+      title: t('Choose a sound'),
       properties: ['openFile'],
-      filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus', 'webm'] }],
+      filters: [{ name: t('Audio'), extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus', 'webm'] }],
     };
     const result = await (parent ? dialog.showOpenDialog(parent, options) : dialog.showOpenDialog(options));
     return result.canceled ? null : (result.filePaths[0] ?? null);
@@ -438,15 +533,20 @@ app.whenReady().then(() => {
   // "nothing happened" has to be distinguishable from "nothing works".
   ipcMain.handle('tracker:compactLog', () => trimLog({ asked: true }));
 
+  // Read on every open of the settings window rather than cached: Steam can be
+  // closed, Dota installed, or an account signed into while it sits there.
+  ipcMain.handle('tracker:getSetup', () => readSetup(config.logFile));
+  ipcMain.handle('tracker:applySetup', (_e, accountId: string) => applySetup(accountId, config.logFile));
+
   ipcMain.handle('tracker:pickLogFile', async (e): Promise<string | null> => {
     const parent = BrowserWindow.fromWebContents(e.sender);
     const options: Electron.OpenDialogOptions = {
-      title: 'Choose the Dota console log',
+      title: t('Choose the Dota console log'),
       defaultPath: config.logFile,
       properties: ['openFile'],
       filters: [
-        { name: 'Console log', extensions: ['log', 'txt'] },
-        { name: 'All files', extensions: ['*'] },
+        { name: t('Console log'), extensions: ['log', 'txt'] },
+        { name: t('All files'), extensions: ['*'] },
       ],
     };
     const result = await (parent ? dialog.showOpenDialog(parent, options) : dialog.showOpenDialog(options));
@@ -512,6 +612,7 @@ app.on('window-all-closed', () => {});
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   feed.stop();
+  market.stop();
   tray?.destroy();
   tray = null;
 });

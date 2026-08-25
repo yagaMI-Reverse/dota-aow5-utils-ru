@@ -10,6 +10,7 @@ import { OverlayShell } from '@/shell/OverlayShell';
 import { useOverlay, useScaleShortcuts } from '@/shell/useOverlay';
 import { Hud } from './Hud';
 import { StateLine } from './StateLine';
+import { t } from '@core/i18n.ts';
 
 /**
  * The farm HUD.
@@ -48,13 +49,13 @@ export function FarmOverlay() {
       {/* Only the clock stops. Loot still counts while it is paused — the
           button says "this stretch was not farming", not "stop tracking". */}
       <ChromeButton
-        label={paused ? 'Start the session clock' : 'Pause the session clock — loot still counts'}
+        label={paused ? t('Start the session clock') : t('Pause the session clock — loot still counts')}
         onClick={togglePaused}
         className={paused ? 'text-primary hover:text-primary' : undefined}
       >
         {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
       </ChromeButton>
-      <ChromeButton label="Start a new session — the numbers go back to zero" onClick={restart}>
+      <ChromeButton label={t('Start a new session — the numbers go back to zero')} onClick={restart}>
         <RotateCcw className="size-3.5" />
       </ChromeButton>
       {/* The one thing the game does not tell the tracker. A room you died in
@@ -64,8 +65,8 @@ export function FarmOverlay() {
       <ChromeButton
         label={
           lastRunDead
-            ? 'Undo — count the last room again'
-            : 'Died here — drop this room’s loot from the session, keep the time'
+            ? t('Undo — count the last room again')
+            : t('Died here — drop this room’s loot from the session, keep the time')
         }
         onClick={toggleLastRunDied}
         className={lastRunDead ? 'text-destructive hover:text-destructive' : 'hover:text-destructive'}
@@ -74,16 +75,16 @@ export function FarmOverlay() {
       </ChromeButton>
       {/* A window of its own, and a singleton: pressing this while it is
           already up brings that one forward rather than opening a second. */}
-      <ChromeButton label="History" onClick={() => void window.tracker.open('history')}>
+      <ChromeButton label={t('History')} onClick={() => void window.tracker.open('history')}>
         <HistoryIcon className="size-3.5" />
       </ChromeButton>
       {/* A window like history, and a singleton for the same reason: two copies
           of the settings would be two answers to the same question. */}
-      <ChromeButton label="Settings" onClick={() => void window.tracker.open('settings')}>
+      <ChromeButton label={t('Settings')} onClick={() => void window.tracker.open('settings')}>
         <Settings2 className="size-3.5" />
       </ChromeButton>
       <ChromeButton
-        label="Quit the tracker"
+        label={t('Quit the tracker')}
         onClick={() => void window.tracker.quit()}
         className="hover:text-destructive"
       >

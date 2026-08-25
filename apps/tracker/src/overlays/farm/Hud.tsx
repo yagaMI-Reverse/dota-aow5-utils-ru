@@ -9,6 +9,7 @@ import { DEFAULT_DIR, sortRows, type SortDir, type SortKey } from '@/features/it
 import { itemTable } from '@/features/items/table';
 import { clock, compact } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { t, tf } from '@core/i18n.ts';
 
 /**
  * The HUD proper: two rows of stat cards, and — expanded — what you picked up.
@@ -205,16 +206,16 @@ export function Hud({ rates, items, sessionItems, elapsed, pricing, tracked, car
       <Card
         icon={<Hourglass className="size-3.5" />}
         value={clock(elapsed)}
-        label="session time"
-        title="Since this session started — the hideout and the loading screens count"
+        label={t('session time')}
+        title={t('Since this session started — the hideout and the loading screens count')}
       />
     ),
     sessionGold: (
       <Card
         icon={<Coins className="size-3.5" />}
         value={compact(sessionGold)}
-        label="session gold"
-        title="Everything this session has dropped, priced the way the list is"
+        label={t('session gold')}
+        title={t('Everything this session has dropped, priced the way the list is')}
       />
     ),
     /* A fixed label, and the item said in the icon instead.
@@ -234,10 +235,10 @@ export function Hud({ rates, items, sessionItems, elapsed, pricing, tracked, car
         }
         value={best === null ? '—' : compact(best.total)}
         trailing={best === null ? undefined : `(×${best.qty})`}
-        label="session best"
+        label={t('session best')}
         title={
           best === null
-            ? 'The item worth most this session'
+            ? t('The item worth most this session')
             : `${itemTable.get(best.id).name} — the session's most valuable pile`
         }
       />
@@ -246,16 +247,16 @@ export function Hud({ rates, items, sessionItems, elapsed, pricing, tracked, car
       <Card
         icon={<Timer className="size-3.5" />}
         value={clock(rates.currentRunElapsed)}
-        label="current time"
-        title="How long you have been in the room you are standing in"
+        label={t('current time')}
+        title={t('How long you have been in the room you are standing in')}
       />
     ),
     mapGold: (
       <Card
         icon={<DollarSign className="size-3.5" />}
         value={compact(currentMapGold)}
-        label="current gold"
-        title="What the room below has dropped, priced the way the list is"
+        label={t('current gold')}
+        title={t('What the room below has dropped, priced the way the list is')}
       />
     ),
     /* A dash rather than a zero until a room has finished: nothing has been
@@ -265,24 +266,24 @@ export function Hud({ rates, items, sessionItems, elapsed, pricing, tracked, car
       <Card
         icon={<Scale className="size-3.5" />}
         value={rates.completedRuns > 0 ? compact(rates.averageRunGold) : '—'}
-        label="gold per map"
-        title="Mean gold of the rooms you have finished this session — the open one does not count yet"
+        label={t('gold per map')}
+        title={t('Mean gold of the rooms you have finished this session — the open one does not count yet')}
       />
     ),
     mapTimeAverage: (
       <Card
         icon={<TimerReset className="size-3.5" />}
         value={rates.averageClear > 0 ? clock(rates.averageClear) : '—'}
-        label="time per map"
-        title="Mean time of the rooms you have finished this session"
+        label={t('time per map')}
+        title={t('Mean time of the rooms you have finished this session')}
       />
     ),
     goldPerHour: (
       <Card
         icon={<Gauge className="size-3.5" />}
         value={compact(rates.goldPerHour)}
-        label="hourly gold"
-        title="Gold per hour, counting only the time you spent inside rooms"
+        label={t('hourly gold')}
+        title={t('Gold per hour, counting only the time you spent inside rooms')}
       />
     ),
   };
@@ -327,7 +328,7 @@ export function Hud({ rates, items, sessionItems, elapsed, pricing, tracked, car
                   Quantity has no header and no sort — it is what `val` and
                   `total` are computed from, and either of them orders by it
                   more usefully than it could itself. */}
-              <SortHeader label="picked up" sortKey="name" sort={sort} onSort={onSort} className="min-w-0 flex-1" />
+              <SortHeader label={t('picked up')} sortKey="name" sort={sort} onSort={onSort} className="min-w-0 flex-1" />
               <span className={COL_NUMBERS}>
                 <span className={COL_QTY} />
                 <SortHeader label="val" sortKey="unit" sort={sort} onSort={onSort} className={COL_EACH} align="end" />
@@ -352,7 +353,7 @@ export function Hud({ rates, items, sessionItems, elapsed, pricing, tracked, car
                   gave you, and a fresh room is a fresh answer. */}
               {rows.length === 0 && (
                 <li className="px-1 py-3 text-center text-xs text-muted-foreground">
-                  {tracked.length > 0 ? 'None of your tracked items in this room yet.' : 'Nothing dropped in here yet.'}
+                  {tracked.length > 0 ? t('None of your tracked items in this room yet.') : t('Nothing dropped in here yet.')}
                 </li>
               )}
               {rows.slice(0, MAX_ROWS).map((row) => {
@@ -388,7 +389,7 @@ export function Hud({ rates, items, sessionItems, elapsed, pricing, tracked, car
                         )}
                         title={
                           pricing.isCustom(row.id)
-                            ? `Your price. Without it this would fetch ${pricing.table(row.id)}g.`
+                            ? tf('Your price. Without it this would fetch {0}g.', pricing.table(row.id))
                             : undefined
                         }
                       >
@@ -439,7 +440,7 @@ function SortHeader({
     <button
       type="button"
       onClick={() => onSort(sortKey)}
-      title={`Sort by ${label}`}
+      title={tf('Sort by {0}', label)}
       className={cn(
         'flex items-center gap-0.5 uppercase hover:text-foreground',
         align === 'end' ? 'justify-end' : 'justify-start',

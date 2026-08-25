@@ -1,6 +1,7 @@
 import { app, dialog, type BrowserWindow } from 'electron';
 import electronUpdater from 'electron-updater';
 import type { UpdateState } from '../core/ipc.ts';
+import { t, tf } from '../core/i18n.ts';
 
 /**
  * Updating the tracker from its own GitHub releases.
@@ -182,17 +183,12 @@ export class Updater {
 
     const options: Electron.MessageBoxOptions = {
       type: 'question',
-      buttons: ['Restart and update', 'Not now'],
+      buttons: [t('Restart and update'), t('Not now')],
       defaultId: 0,
       cancelId: 1,
-      title: 'Update the tracker',
-      message: `Update to ${version}?`,
-      detail:
-        'Get to the hideout first. The tracker closes and reopens on the new version, and it cannot watch the ' +
-        'game while it does.\n\n' +
-        'Runs you have finished are already in the archive. The one you are standing in is not, and the session ' +
-        'totals start again from zero.\n\n' +
-        'Your settings, prices and history are kept.',
+      title: t('Update the tracker'),
+      message: tf('Update to {0}?', version),
+      detail: t('update-detail'),
       noLink: true,
     };
 

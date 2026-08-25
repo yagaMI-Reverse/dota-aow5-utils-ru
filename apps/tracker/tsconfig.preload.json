@@ -27,6 +27,8 @@
   "include": [
     "electron/preload.ts",
     "core/cards.ts",
+    "core/i18n.ts",
+    "core/locale.ru.ts",
     "core/events.ts",
     "core/ipc.ts",
     "core/history.ts",

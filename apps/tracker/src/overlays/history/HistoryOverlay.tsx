@@ -7,6 +7,7 @@ import { OverlayShell } from '@/shell/OverlayShell';
 import { useOverlay, useScaleShortcuts } from '@/shell/useOverlay';
 import { UI_SCALE } from '@core/ipc.ts';
 import { HistoryView } from './HistoryView';
+import { t } from '@core/i18n.ts';
 
 /**
  * The archive, in a window of its own.
@@ -55,7 +56,7 @@ export function HistoryOverlay() {
       interactive={interactive}
       hotkey={config?.hotkey ?? 'Ctrl+Alt+T'}
       actions={
-        <ChromeButton label="Close this window" onClick={close} className="hover:text-destructive">
+        <ChromeButton label={t('Close this window')} onClick={close} className="hover:text-destructive">
           <X className="size-3.5" />
         </ChromeButton>
       }

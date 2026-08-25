@@ -10,6 +10,9 @@ import { itemTable } from '@/features/items/table';
 import { roomTable } from '@/features/rooms/table';
 import { clock, compact, stamp } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { t, tf } from '@core/i18n.ts';
+import { RoomTable } from './RoomTable';
+import { MarketLedger } from './MarketLedger';
 
 /**
  * What has been farmed, across every session the archive kept.
@@ -114,11 +117,17 @@ export function HistoryView({ sessions, pricing, onRefresh }: Props) {
   return (
     <ScrollArea className="min-h-0 flex-1" viewportClassName="hud-fade-bottom">
       <div className="space-y-2 pe-2 pb-4 text-xs">
-        {visible === null && <Empty>Reading the archive…</Empty>}
+        {/* Above the sessions: these two answer questions about tomorrow
+            rather than about last night. */}
+        <MarketLedger />
+        <RoomTable sessions={visible} pricing={pricing} />
+
+        {visible === null && <Empty>{t('Reading the archive…')}</Empty>}
         {visible?.length === 0 && (
           <Empty>
-            Nothing recorded yet. A session lands here once its first run finishes — the run you are in is still the
-            overlay&apos;s.
+            {t(
+              'Nothing recorded yet. A session lands here once its first run finishes — the run you are in is still the overlay’s.',
+            )}
           </Empty>
         )}
 
@@ -134,7 +143,7 @@ export function HistoryView({ sessions, pricing, onRefresh }: Props) {
                 <Checkbox
                   checked={selected.has(session.id)}
                   onCheckedChange={() => toggleSelected(session.id)}
-                  aria-label={`Select the session of ${stamp(session.id)}`}
+                  aria-label={tf('Select the session of {0}', stamp(session.id))}
                   className="size-3.5 shrink-0"
                 />
                 <button
@@ -164,15 +173,15 @@ export function HistoryView({ sessions, pricing, onRefresh }: Props) {
                 is priced from the drops.
               */}
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-2 pb-1.5 ps-6 text-[0.625rem] text-muted-foreground">
-                <Stat label="active" value={clock(totals.activeTime)} />
-                {totals.gold > 0 && <Stat label="gold" value={compact(totals.gold)} gold />}
+                <Stat label={t('active')} value={clock(totals.activeTime)} />
+                {totals.gold > 0 && <Stat label={t('gold')} value={compact(totals.gold)} gold />}
                 <Stat label="value" value={compact(itemsValue(totals.byItem, pricing))} gold />
                 <Stat label="items" value={String(totals.items)} />
               </div>
 
               {open && (
                 <div className="space-y-1 px-2 pb-2">
-                  {session.runs.length === 0 && <p className="ps-4 text-[0.625rem] text-muted-foreground">No runs.</p>}
+                  {session.runs.length === 0 && <p className="ps-4 text-[0.625rem] text-muted-foreground">{t('No runs.')}</p>}
                   {session.runs.map((run, index) => {
                     const key = `${session.id}:${index}`;
                     return (
@@ -200,9 +209,7 @@ export function HistoryView({ sessions, pricing, onRefresh }: Props) {
                         className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left hover:bg-white/5"
                       >
                         <Caret open={openTotals.has(session.id)} />
-                        <span className="min-w-0 flex-1 text-[0.5rem] tracking-wide text-muted-foreground uppercase">
-                          session total
-                        </span>
+                        <span className="min-w-0 flex-1 text-[0.5rem] tracking-wide text-muted-foreground uppercase">{t('session total')}</span>
                         <span className="shrink-0 text-[0.5rem] tabular-nums text-muted-foreground">
                           {totals.byItem.length} items
                         </span>
@@ -218,8 +225,7 @@ export function HistoryView({ sessions, pricing, onRefresh }: Props) {
 
         <div className="flex gap-1">
           <Button variant="outline" className="h-7 flex-1 text-xs" onClick={onRefresh}>
-            <RefreshCw className="size-3.5" /> Refresh
-          </Button>
+            <RefreshCw className="size-3.5" />{t('Refresh')}</Button>
           {/* Only when there is something to clear: a destructive button beside
               an empty list is an offer to break something that is not there.
 
@@ -245,18 +251,18 @@ export function HistoryView({ sessions, pricing, onRefresh }: Props) {
               }}
               title={
                 selected.size > 0
-                  ? 'Delete the ticked sessions and the runs recorded under them.'
-                  : 'Delete every archived session. The session on screen keeps counting.'
+                  ? t('Delete the ticked sessions and the runs recorded under them.')
+                  : t('Delete every archived session. The session on screen keeps counting.')
               }
             >
               <Trash2 className="size-3.5" />{' '}
               {arming
                 ? selected.size > 0
-                  ? `Delete ${selected.size}?`
-                  : 'Delete all?'
+                  ? tf('Delete {0}?', selected.size)
+                  : t('Delete all?')
                 : selected.size > 0
-                  ? `Delete ${selected.size}`
-                  : 'Clear all'}
+                  ? tf('Delete {0}', selected.size)
+                  : t('Clear all')}
             </Button>
           )}
         </div>
@@ -314,7 +320,7 @@ function Run({
       {open && (
         <div className="pb-1">
           {items.length === 0 ? (
-            <p className="px-1.5 ps-6 text-[0.625rem] text-muted-foreground">Nothing dropped.</p>
+            <p className="px-1.5 ps-6 text-[0.625rem] text-muted-foreground">{t('Nothing dropped.')}</p>
           ) : (
             <Items items={items} pricing={pricing} />
           )}

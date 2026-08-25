@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
+import { t } from '@core/i18n.ts';
 
 /**
  * The corner handle that resizes the window.
@@ -71,7 +72,7 @@ export function ResizeGrip({ axis }: Props) {
   return (
     <div
       role="separator"
-      aria-label="Resize overlay"
+      aria-label={t('Resize overlay')}
       // `no-drag` matters: without it the header's drag region would win and
       // the gesture would move the window instead of resizing it.
       className={cn(

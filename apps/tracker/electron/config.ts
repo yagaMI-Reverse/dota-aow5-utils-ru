@@ -2,6 +2,7 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_CARDS, readCards } from '../core/cards.ts';
+import { readLanguage } from '../core/i18n.ts';
 import { DEFAULT_SOUNDS, readSoundSettings } from '../core/sounds.ts';
 import {
   OPACITY,
@@ -74,6 +75,13 @@ export const DEFAULTS: TrackerConfig = {
   // On: the failure it prevents — an evening measured as zero — costs more
   // than the one it can cause, which is a clock you have to stop again.
   autoResume: true,
+  // Russian, because this fork exists to be in Russian. English is one click
+  // away and costs nothing to ship — it is the source strings themselves.
+  language: 'ru',
+  // On, because the fork's whole reason for the feature is a player who asked
+  // for it. It stays cheap while the Exchange is closed — a thumbnail and a
+  // few pixel reads a second — and the settings switch is right there.
+  market: { enabled: true },
 };
 
 export const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
@@ -214,6 +222,9 @@ export function loadConfig(): TrackerConfig {
     cards: readCards(raw['cards']),
     // Absent means the default here, and the default is on.
     autoResume: raw['autoResume'] !== false,
+    // Absent, or a language this build does not ship, reads as the default.
+    language: readLanguage(raw['language']),
+    market: { enabled: !(isRecord(raw['market']) && raw['market']['enabled'] === false) },
     // Playback speed is a development knob owned by the default and `--speed`,
     // never by the saved file — a stale value there would silently undo it.
     mockSpeed: DEFAULTS.mockSpeed,

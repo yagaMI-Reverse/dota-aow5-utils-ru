@@ -1,5 +1,6 @@
 import { Map as MapIcon, Trophy } from 'lucide-react';
 import { roomTable } from '@/features/rooms/table';
+import { t } from '@core/i18n.ts';
 
 /**
  * Where you are, on the line the title bar uses while the overlay is clickable.
@@ -27,14 +28,14 @@ export function StateLine({ room, runs }: { room: string | null; runs: number })
         {/* "In hideout" but "At Frozen Tundra": the hideout is a place you are
             inside of, and a room is a place you are at, which is also the
             difference between waiting and farming. */}
-        <span className="text-muted-foreground">{room === null ? 'In ' : 'At '}</span>
-        <span className="font-semibold">{room === null ? 'hideout' : roomTable.name(room)}</span>
+        <span className="text-muted-foreground">{room === null ? t('In ') : t('At ')}</span>
+        <span className="font-semibold">{room === null ? t('hideout') : roomTable.name(room)}</span>
       </span>
       {/* `ms-auto` rather than a spacer: the room takes the width it needs and
           the count sits against the right edge whatever is left. */}
       <span
         className="ms-auto flex shrink-0 items-center gap-1 text-[0.6875rem] tabular-nums"
-        title="Runs finished this session"
+        title={t('Runs finished this session')}
       >
         <Trophy className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="font-semibold">{runs}</span>

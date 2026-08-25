@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { itemTable } from '@/features/items/table';
 import { cn } from '@/lib/utils';
+import { t } from '@core/i18n.ts';
 
 /**
  * Picks the next thing to collect toward.
@@ -49,12 +50,8 @@ export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
     // the window on every keystroke.
     <div className="hud-panel flex w-60 flex-col gap-1.5 p-2">
       <div className="flex gap-1">
-        <Mode active={recipesOnly} onClick={() => setRecipesOnly(true)} icon={<Hammer className="size-3" />}>
-          recipes
-        </Mode>
-        <Mode active={!recipesOnly} onClick={() => setRecipesOnly(false)} icon={<Package className="size-3" />}>
-          any item
-        </Mode>
+        <Mode active={recipesOnly} onClick={() => setRecipesOnly(true)} icon={<Hammer className="size-3" />}>{t('recipes')}</Mode>
+        <Mode active={!recipesOnly} onClick={() => setRecipesOnly(false)} icon={<Package className="size-3" />}>{t('any item')}</Mode>
       </div>
 
       <Input
@@ -62,17 +59,17 @@ export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => e.key === 'Escape' && onCancel()}
-        placeholder={recipesOnly ? 'Search recipes…' : 'Search items…'}
+        placeholder={recipesOnly ? t('Search recipes…') : t('Search items…')}
         className="h-7 text-xs"
       />
 
       {query.trim() !== '' && results.length === 0 && (
         <p className="px-1 text-[0.625rem] text-muted-foreground">
           {loading
-            ? 'Loading recipes…'
+            ? t('Loading recipes…')
             : recipesOnly
-              ? 'Nothing craftable by that name. Try “any item”.'
-              : 'No item by that name.'}
+              ? t('Nothing craftable by that name. Try “any item”.')
+              : t('No item by that name.')}
         </p>
       )}
 
@@ -97,9 +94,7 @@ export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
         ))}
       </ul>
 
-      <Button variant="outline" className="h-6 w-full text-[0.625rem]" onClick={onCancel}>
-        Cancel
-      </Button>
+      <Button variant="outline" className="h-6 w-full text-[0.625rem]" onClick={onCancel}>{t('Cancel')}</Button>
     </div>
   );
 }

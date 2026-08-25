@@ -2,6 +2,7 @@ import type { CardId } from './cards.ts';
 import type { TrackerEvent } from './events.ts';
 import type { SessionHistory } from './history.ts';
 import type { SoundSettings } from './sounds.ts';
+import type { Language } from './i18n.ts';
 
 /**
  * The contract across the preload bridge.
@@ -27,9 +28,9 @@ export type SourceKind = 'mock' | 'console';
  * which is where the differences live. Every channel below already carries the
  * id, so a fifth would change no signature.
  */
-export type OverlayId = 'farm' | 'recipe' | 'history' | 'settings';
+export type OverlayId = 'farm' | 'recipe' | 'history' | 'settings' | 'market';
 
-export const OVERLAY_IDS: OverlayId[] = ['farm', 'recipe', 'history', 'settings'];
+export const OVERLAY_IDS: OverlayId[] = ['farm', 'recipe', 'history', 'settings', 'market'];
 
 /** Per-overlay window state. Collapsed height is measured by the renderer, not stored. */
 export interface OverlayView {
@@ -140,6 +141,22 @@ export const OVERLAY_SPEC: Record<OverlayId, OverlaySpec> = {
     auto: false,
     hotkeyed: false,
   },
+  /*
+   * The exchange lens. Not a panel at all: a screen-sized transparent sheet
+   * that draws verdict badges over the game's own Exchange rows, and never
+   * takes the mouse — `market.ts` pins it click-through for good, so the spec
+   * sizes are only what `readView` needs to stay total. It is positioned and
+   * sized to the display by code, not by the player.
+   */
+  market: {
+    limits: {
+      min: { width: 320, height: 200 },
+      max: { width: 8192, height: 8192 },
+      default: { width: 1280, height: 800 },
+    },
+    auto: false,
+    hotkeyed: false,
+  },
 };
 
 /** Sizes a window may take. Shorthand for the half of the spec everyone reads. */
@@ -148,6 +165,7 @@ export const OVERLAY_LIMITS: Record<OverlayId, OverlayLimits> = {
   recipe: OVERLAY_SPEC.recipe.limits,
   history: OVERLAY_SPEC.history.limits,
   settings: OVERLAY_SPEC.settings.limits,
+  market: OVERLAY_SPEC.market.limits,
 };
 
 /**
@@ -291,6 +309,27 @@ export interface TrackerConfig {
    * stretch, and the next room is a new one.
    */
   autoResume: boolean;
+
+  /**
+   * Which language the interface speaks.
+   *
+   * Stored rather than taken from the OS: the player who wants the game in one
+   * language and their tools in another is common enough, and a tracker that
+   * silently followed Windows would give them no way to say so.
+   */
+  language: Language;
+
+  /**
+   * The Exchange lens: read the game's market window off the screen and badge
+   * each row with a verdict.
+   *
+   * A switch because it is the one feature that watches the screen, which is a
+   * different thing to promise than reading a log file — someone who wants the
+   * tracker without that has to be able to say so in one click.
+   */
+  market: {
+    enabled: boolean;
+  };
 }
 
 /**
@@ -380,6 +419,90 @@ export interface SessionSnapshot {
 /** Subscriptions return their own unsubscribe, so React effects clean up. */
 export type Unsubscribe = () => void;
 
+/** How Dota is set to present itself. Only the first of these shows an overlay. */
+export type DisplayMode = 'borderless' | 'windowed' | 'fullscreen' | 'unknown';
+
+/**
+ * One thing setup looks at, and what it found.
+ *
+ * `different` rather than a second boolean because the three answers are three
+ * different sentences: nothing there, something there that is ours, something
+ * there that is someone else's and must not be overwritten without saying so.
+ */
+export type CheckState = 'ok' | 'missing' | 'different' | 'unknown';
+
+/**
+ * A Steam account on this machine, as far as the launch option is concerned.
+ *
+ * Plural because a shared PC has several and the launch option is per account:
+ * writing it for the one Steam happens to have signed in would silently do
+ * nothing for the profile the player actually farms on.
+ */
+export interface SteamAccount {
+  /** The `userdata` folder name, which is the 32-bit account id. */
+  id: string;
+  /** The one Steam currently has signed in, per its own registry key. */
+  active: boolean;
+  /** Dota's launch options verbatim, or null when the app has no entry yet. */
+  launchOptions: string | null;
+  /** Whether `-con_logfile` in those options points at the tracker's file. */
+  logFlag: CheckState;
+  /** From this account's `video.txt`; `fullscreen` is the one that hides overlays. */
+  display: DisplayMode;
+}
+
+/** Everything setup can see without changing anything. */
+export interface SetupStatus {
+  steamPath: string | null;
+  /** The `dota 2 beta` folder, found through the library that lists app 570. */
+  dotaPath: string | null;
+  /** Steam rewrites `localconfig.vdf` when it exits, so it must be closed to edit. */
+  steamRunning: boolean;
+  /** The log the tracker is configured to read. */
+  logFile: string;
+  accounts: SteamAccount[];
+  autoexec: CheckState;
+  logExists: boolean;
+}
+
+export type SetupStep = 'autoexec' | 'logfile' | 'launch';
+
+export interface SetupStepResult {
+  step: SetupStep;
+  /** `already` is a success that changed nothing, and is worth saying so. */
+  state: 'done' | 'already' | 'skipped' | 'failed';
+  /** A reason, for the states that have one. Not for display without `t()`. */
+  note?: string;
+}
+
+/**
+ * One line of recognised text on the screen, in screen pixels.
+ *
+ * Deliberately raw: main ships what the OCR engine said and where, and the
+ * market overlay does the reading — it is the renderer that has the item
+ * table, the player's prices and the language to say a verdict in. Keeping
+ * main dumb here means a parsing bug is a renderer patch, not a pipeline one.
+ */
+export interface MarketTextLine {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  text: string;
+}
+
+/** What one look at the Exchange window produced. */
+export interface MarketFrame {
+  /** Epoch ms of the capture. */
+  t: number;
+  /** Display size the coordinates are in, so the overlay can sanity-check. */
+  screenW: number;
+  screenH: number;
+  /** True when the Exchange window was detected at all. */
+  open: boolean;
+  lines: MarketTextLine[];
+}
+
 export interface TrackerApi {
   /** Which overlay this renderer is. Set by the preload from the window's query string. */
   readonly overlay: OverlayId;
@@ -389,6 +512,8 @@ export interface TrackerApi {
   onConfig: (handler: (config: TrackerConfig) => void) => Unsubscribe;
   onInteractive: (handler: (interactive: boolean) => void) => Unsubscribe;
   onSkipped: (handler: (skipped: SkippedLine[]) => void) => Unsubscribe;
+  /** Frames from the Exchange watcher. Only the market overlay listens. */
+  onMarket: (handler: (frame: MarketFrame) => void) => Unsubscribe;
 
   getConfig: () => Promise<TrackerConfig>;
   setConfig: (patch: Partial<TrackerConfig>) => Promise<TrackerConfig>;
@@ -524,6 +649,24 @@ export interface TrackerApi {
    * also applies on the next ordinary quit, so declining costs nothing.
    */
   installUpdate: () => Promise<void>;
+
+  /**
+   * What the machine looks like to setup, changing nothing.
+   *
+   * Cheap enough to call on every open of the settings window: it is a handful
+   * of registry reads and a few small files, and a status that went stale
+   * while the window sat open is worse than one that is re-read.
+   */
+  getSetup: () => Promise<SetupStatus>;
+  /**
+   * Do the setup that can be done, for one account.
+   *
+   * Every step reports for itself rather than the call failing as a whole,
+   * because the steps fail independently and for different reasons: the cfg
+   * needs Dota found, the launch option needs Steam closed, and neither is a
+   * reason to skip the other. A step that was already right says so.
+   */
+  applySetup: (accountId: string) => Promise<SetupStepResult[]>;
 
   quit: () => Promise<void>;
 }

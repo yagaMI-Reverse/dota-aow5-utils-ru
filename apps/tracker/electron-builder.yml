@@ -76,8 +76,11 @@ nsis:
 
 publish:
   provider: github
-  owner: aksodame
-  repo: dota-aow5-utils
+  # The fork's releases, not upstream's: this is the endpoint electron-updater
+  # polls, and pointing it at aksodame would auto-"update" every user of the
+  # Russian build back onto the English one.
+  owner: yagaMI-Reverse
+  repo: dota-aow5-utils-ru
   # The site reads /releases/latest and shows whatever is attached; a draft
   # would leave that button pointing at the last release instead of this one.
   #

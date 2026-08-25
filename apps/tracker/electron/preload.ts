@@ -5,7 +5,10 @@ import {
   OVERLAY_IDS,
   type LogTrim,
   type OverlayId,
+  type MarketFrame,
   type SessionSnapshot,
+  type SetupStatus,
+  type SetupStepResult,
   type SkippedLine,
   type TrackerApi,
   type TrackerConfig,
@@ -50,6 +53,7 @@ const api: TrackerApi = {
   onConfig: (handler: (config: TrackerConfig) => void) => on<TrackerConfig>('tracker:config', handler),
   onInteractive: (handler: (interactive: boolean) => void) => on<boolean>('tracker:interactive', handler),
   onSkipped: (handler: (skipped: SkippedLine[]) => void) => on<SkippedLine[]>('tracker:skipped', handler),
+  onMarket: (handler: (frame: MarketFrame) => void) => on<MarketFrame>('tracker:market', handler),
   onUpdate: (handler: (state: UpdateState) => void) => on<UpdateState>('tracker:update', handler),
 
   getConfig: (): Promise<TrackerConfig> => ipcRenderer.invoke('tracker:getConfig'),
@@ -80,6 +84,9 @@ const api: TrackerApi = {
   checkUpdate: (): Promise<void> => ipcRenderer.invoke('tracker:checkUpdate'),
   downloadUpdate: (): Promise<void> => ipcRenderer.invoke('tracker:downloadUpdate'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('tracker:installUpdate'),
+
+  getSetup: (): Promise<SetupStatus> => ipcRenderer.invoke('tracker:getSetup'),
+  applySetup: (accountId: string): Promise<SetupStepResult[]> => ipcRenderer.invoke('tracker:applySetup', accountId),
 
   quit: (): Promise<void> => ipcRenderer.invoke('tracker:quit'),
 };

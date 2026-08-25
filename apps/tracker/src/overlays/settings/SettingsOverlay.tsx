@@ -6,6 +6,7 @@ import { ChromeButton } from '@/shell/ChromeButton';
 import { OverlayShell } from '@/shell/OverlayShell';
 import { useOverlay, useScaleShortcuts } from '@/shell/useOverlay';
 import { Settings } from './Settings';
+import { t } from '@core/i18n.ts';
 
 /**
  * Settings, in a window of its own.
@@ -92,7 +93,7 @@ export function SettingsOverlay() {
       interactive={interactive}
       hotkey={config?.hotkey ?? 'Ctrl+Alt+T'}
       actions={
-        <ChromeButton label="Close this window" onClick={close} className="hover:text-destructive">
+        <ChromeButton label={t('Close this window')} onClick={close} className="hover:text-destructive">
           <X className="size-3.5" />
         </ChromeButton>
       }

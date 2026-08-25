@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { ChromeButton } from './ChromeButton';
 import { ResizeGrip } from './ResizeGrip';
 import { useContentSize } from './useContentSize';
+import { t } from '@core/i18n.ts';
 
 /**
  * The frame every overlay window draws inside.
@@ -93,7 +94,7 @@ export function OverlayShell({
 
   const toggle = onToggleCollapsed && (
     <ChromeButton
-      label={collapsed ? 'Expand to the full readout' : 'Collapse to the summary cards'}
+      label={collapsed ? t('Expand to the full readout') : t('Collapse to the summary cards')}
       onClick={onToggleCollapsed}
     >
       {collapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}

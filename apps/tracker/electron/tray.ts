@@ -1,6 +1,7 @@
 import { Menu, nativeImage, Tray, app } from 'electron';
 import { OVERLAY_SPEC } from '../core/ipc.ts';
 import type { Overlay } from './overlay.ts';
+import { t, tf } from '../core/i18n.ts';
 
 /**
  * The tray icon.
@@ -32,15 +33,15 @@ export function createTray(host: TrayHost): Tray {
     tray.setContextMenu(
       Menu.buildFromTemplate([
         ...host.overlays.map((overlay) => ({
-          label: `${overlay.isVisible() ? 'Hide' : 'Show'} ${overlay.id} overlay`,
+          label: tf(overlay.isVisible() ? 'Hide {0}' : 'Show {0}', t(`overlay-name-${overlay.id}`)),
           click: () => {
             overlay.toggleVisible(host.onCreated);
             rebuild();
           },
         })),
-        { label: `Interactive: ${host.hotkey()}`, enabled: false },
+        { label: tf('Interactive: {0}', host.hotkey()), enabled: false },
         { type: 'separator' as const },
-        { label: 'Quit', click: () => app.quit() },
+        { label: t('Quit'), click: () => app.quit() },
       ]),
     );
   };

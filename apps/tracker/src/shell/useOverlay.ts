@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { OPACITY, UI_SCALE, type OverlayId, type TrackerConfig } from '@core/ipc.ts';
+import { setLanguage } from '@core/i18n.ts';
 
 /**
  * Everything about the window this renderer is drawing into.
@@ -48,16 +49,29 @@ export function useOverlay(): OverlayChrome {
   const [config, setConfig] = useState<TrackerConfig | null>(null);
   const [interactive, setInteractive] = useState(false);
 
+  /*
+   * The dictionary is swapped before the state that triggers the re-render, so
+   * the very first paint after a language change is already in the new one.
+   * `t()` reads a module-level dictionary rather than a context: it is called
+   * from plain functions as well as components, and threading a provider
+   * through every one of them would be a great deal of ceremony for a value
+   * that changes about once in the life of an install.
+   */
+  const applyConfig = useCallback((next: TrackerConfig) => {
+    setLanguage(next.language);
+    setConfig(next);
+  }, []);
+
   useEffect(() => {
     const api = window.tracker;
-    const offConfig = api.onConfig(setConfig);
+    const offConfig = api.onConfig(applyConfig);
     const offInteractive = api.onInteractive(setInteractive);
-    void api.getConfig().then(setConfig);
+    void api.getConfig().then(applyConfig);
     return () => {
       offConfig();
       offInteractive();
     };
-  }, []);
+  }, [applyConfig]);
 
   const scale = config?.uiScale ?? UI_SCALE.default;
 

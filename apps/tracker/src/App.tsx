@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { OverlayId } from '@core/ipc.ts';
 import { FarmOverlay } from '@/overlays/farm/FarmOverlay';
 import { HistoryOverlay } from '@/overlays/history/HistoryOverlay';
+import { MarketOverlay } from '@/overlays/market/MarketOverlay';
 import { RecipeOverlay } from '@/overlays/recipe/RecipeOverlay';
 import { SettingsOverlay } from '@/overlays/settings/SettingsOverlay';
 
@@ -18,6 +19,7 @@ const OVERLAYS: Record<OverlayId, ComponentType> = {
   recipe: RecipeOverlay,
   history: HistoryOverlay,
   settings: SettingsOverlay,
+  market: MarketOverlay,
 };
 
 export default function App() {
