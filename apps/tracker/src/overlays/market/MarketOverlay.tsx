@@ -164,15 +164,23 @@ function buildIndex(): NameIndex {
     const names = source.names ?? {};
     for (const [id, name] of Object.entries(names)) {
       if (typeof name !== 'string' || name.length < 3) continue;
-      if (!tradeworthy(id)) continue;
       const folded = fold(name);
       if (folded.length < 3) continue;
-      const ranked = parseRank(folded);
-      entries.push({ id, folded, grams: bigrams(folded), ranked });
-      familySize.set(ranked.family, (familySize.get(ranked.family) ?? 0) + 1);
+      /*
+       * Collisions are counted over the FULL catalog, before the trade
+       * filter. The uncommon "Клинок пустоты" is shelf filler the index
+       * rightly drops — but its legendary namesake is not, and with the twin
+       * filtered out the name stopped looking ambiguous: a 9.9k uncommon on
+       * screen resolved to the 12k legendary and wore its salvage badge. An
+       * item can be beneath pricing and still poison a name.
+       */
       const ids = foldedCount.get(folded) ?? new Set<string>();
       ids.add(id);
       foldedCount.set(folded, ids);
+      if (!tradeworthy(id)) continue;
+      const ranked = parseRank(folded);
+      entries.push({ id, folded, grams: bigrams(folded), ranked });
+      familySize.set(ranked.family, (familySize.get(ranked.family) ?? 0) + 1);
     }
   }
   /*
