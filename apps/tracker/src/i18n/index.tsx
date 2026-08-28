@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { resolveLocale, type LanguageSetting, type Locale } from '@core/locale.ts';
+import { setLanguage as setForkDictionary } from '@core/i18n.ts';
 import { en, type Messages } from './en';
 import { ru } from './ru';
 import { zh } from './zh';
@@ -50,7 +51,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const api = window.tracker;
-    const apply = (setting: LanguageSetting) => setLanguage(resolveLocale(setting, api.systemLocale));
+    const apply = (setting: LanguageSetting) => {
+      const locale = resolveLocale(setting, api.systemLocale);
+      setLanguage(locale);
+      // The fork's own dictionary (market lens, setup, ledger) rides the same
+      // resolution, so its strings switch in the same paint as the catalog's.
+      setForkDictionary(locale);
+    };
     const off = api.onConfig((config) => apply(config.language));
     void api.getConfig().then((config) => apply(config.language));
     return off;

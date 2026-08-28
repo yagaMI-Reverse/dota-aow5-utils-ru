@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GripVertical, Hammer, Minus, Plus, X } from 'lucide-react';
+import { Clock3, GripVertical, Hammer, Minus, Plus, X } from 'lucide-react';
 import { iconUrl, qualityColor, type ItemTable } from '@core/items.ts';
 import type { RecipeTarget } from '@core/ipc.ts';
 import type { RequirementProgress } from '@core/recipes.ts';
@@ -11,6 +11,9 @@ import { useContentSize } from '@/shell/useContentSize';
 import { useOverlay } from '@/shell/useOverlay';
 import { cn } from '@/lib/utils';
 import { ItemPicker } from './ItemPicker';
+import { craftEtaHours, type ArchiveRates } from '@core/history-stats.ts';
+import { t as ft, tf } from '@core/i18n.ts';
+import { useArchiveRates } from '@/features/recipes/useArchiveRates';
 
 /*
  * Tile geometry, in one place because it is one decision.
@@ -79,6 +82,7 @@ export function RecipeOverlay() {
   const expanded = useMemo(() => new Set(config?.recipeExpand ?? []), [config]);
   const { groups, craftable, graph } = useRecipes(targets, state.items, ticked, expanded);
   const [picking, setPicking] = useState(false);
+  const archiveRates = useArchiveRates();
   const column = useRef<HTMLDivElement | null>(null);
 
   // The picker is a panel the size of a dialog; leaving it open behind the game
@@ -170,6 +174,7 @@ export function RecipeOverlay() {
           craftable={craftable}
           items={items}
           m={m}
+          rates={archiveRates}
           onAdjust={adjust}
           onToggle={toggleTicked}
           onExpand={toggleExpanded}
@@ -209,12 +214,25 @@ export function RecipeOverlay() {
  * decided by whatever needs it, so the only thing to say about it is whether
  * to make it at all — which is the ×.
  */
+/**
+ * Hours as something you can read at a glance while playing. Rounded to five
+ * minutes above an hour: the estimate is built from a handful of drops and
+ * printing "2 h 37 m" claims a precision the data does not have.
+ */
+function etaLabel(hours: number): string {
+  const total = Math.max(1, Math.round(hours * 60));
+  if (total < 60) return tf('~{0} m', total);
+  const rounded = Math.round(total / 5) * 5;
+  return tf('~{0} h {1} m', Math.floor(rounded / 60), rounded % 60);
+}
+
 function Line({
   group,
   interactive,
   craftable,
   items,
   m,
+  rates,
   onAdjust,
   onToggle,
   onExpand,
@@ -225,11 +243,24 @@ function Line({
   /** Passed down rather than hooked, as in `HistoryView` and for the same reason. */
   items: ItemTable;
   m: Messages;
+  /** Drop rates from the archive, or null when there is no archive to read. */
+  rates: ArchiveRates | null;
   onAdjust: (id: string, by: number) => void;
   onToggle: (id: string) => void;
   onExpand: (id: string) => void;
 }) {
   const { id, count, derived, rows, complete } = group;
+
+  /*
+   * How long the rest of this should take, from what has actually dropped —
+   * and only that: one ingredient with no history poisons the estimate to
+   * null rather than being guessed at.
+   */
+  const eta = useMemo(() => {
+    if (rates === null || complete) return null;
+    const missing = rows.filter((row) => !row.done).map((row) => ({ id: row.id, count: row.count - row.have }));
+    return craftEtaHours(rates, missing);
+  }, [rates, complete, rows]);
   const info = items.get(id);
 
   return (
@@ -277,6 +308,18 @@ function Line({
           onExpand={onExpand}
         />
       ))}
+
+      {/* Drawn in both modes, unlike the controls beside it: this is a thing
+          to read while playing, which is when the answer matters. */}
+      {eta !== null && (
+        <span
+          className={cn(CHIP, 'ms-1 flex shrink-0 items-center gap-1 self-center px-1 py-0.5 text-[0.5625rem]')}
+          title={ft('At the rate these have dropped for you so far')}
+        >
+          <Clock3 className="size-2.5 text-muted-foreground" />
+          <span className="tabular-nums text-foreground">{etaLabel(eta)}</span>
+        </span>
+      )}
 
       <span
         className={cn(

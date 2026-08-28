@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, net, type Tray } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setLanguage, t, tf } from '../core/i18n.ts';
+import { setLanguage, t } from '../core/i18n.ts';
 import { resolveLocale } from '../core/locale.ts';
 import { applySetup, logFileFromLaunchOptions, readSetup } from './setup.ts';
 import { MarketWatcher } from './market.ts';

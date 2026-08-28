@@ -4,7 +4,7 @@ import type { SessionHistory } from '@core/history.ts';
 import { roomProfit } from '@core/history-stats.ts';
 import { t, tf } from '@core/i18n.ts';
 import type { Pricing } from '@/features/items/prices';
-import { roomTable } from '@/features/rooms/table';
+import { useRooms } from '@/features/rooms/table';
 import { clock, compact } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
  * not a thing you read every time you open the window to check last night.
  */
 export function RoomTable({ sessions, pricing }: { sessions: SessionHistory[] | null; pricing: Pricing }) {
+  const roomTable = useRooms();
   const [open, setOpen] = useState(false);
   const rooms = useMemo(() => (sessions === null ? [] : roomProfit(sessions, pricing.value)), [sessions, pricing]);
 

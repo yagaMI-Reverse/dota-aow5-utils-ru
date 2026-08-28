@@ -72,6 +72,8 @@ import { useRooms } from '@/features/rooms/table';
 import { useMessages, type Messages } from '@/i18n';
 import { clock, compact, percent } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { t } from '@core/i18n.ts';
+import { SetupSection } from './SetupSection';
 
 /**
  * Everything worth changing, in the window it now has to itself.
@@ -847,6 +849,25 @@ export function Settings({
           The mock is still reachable where it belongs: the source badge in the
           HUD's title bar, in development builds.
         */}
+        {/* Fork sections: first-run setup and the Exchange lens switch. Their
+            strings ride the fork dictionary rather than the catalog. */}
+        <section className="space-y-1.5">
+          <Label>{t('Setup')}</Label>
+          <SetupSection />
+        </section>
+
+        <section className="space-y-1.5">
+          <Label>{t('Exchange lens')}</Label>
+          <CheckboxRow
+            label={t('Badge Exchange listings with a verdict')}
+            hint={t(
+              'Reads the Exchange window off the screen while it is open and marks each row against your prices: green is a bargain, red is an overcharge. Screen capture only — the game itself is never touched.',
+            )}
+            checked={config?.market.enabled ?? true}
+            onChange={(next) => void window.tracker.setConfig({ market: { enabled: next } })}
+          />
+        </section>
+
         <section className="space-y-1.5">
           <Label>{m.settings.log.title}</Label>
           <p className="text-[0.625rem] text-muted-foreground">{m.settings.log.blurb}</p>

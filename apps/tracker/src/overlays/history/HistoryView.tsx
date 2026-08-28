@@ -11,6 +11,8 @@ import { useRooms } from '@/features/rooms/table';
 import { useLocale, useMessages, type Messages } from '@/i18n';
 import { clock, compact, stamp } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { MarketLedger } from './MarketLedger';
+import { RoomTable } from './RoomTable';
 
 /**
  * What has been farmed, across every session the archive kept.
@@ -145,6 +147,11 @@ export function HistoryView({ sessions, pricing, onRefresh }: Props) {
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <ScrollArea className="min-h-0 flex-1" viewportClassName="hud-fade-bottom">
         <div className="space-y-2 pe-2 pb-4 text-xs">
+          {/* Above the sessions: these two answer questions about tomorrow
+              rather than about last night. */}
+          <MarketLedger />
+          <RoomTable sessions={visible} pricing={pricing} />
+
           {visible === null && <Empty>{m.history.reading}</Empty>}
           {visible?.length === 0 && <Empty>{m.history.empty}</Empty>}
 

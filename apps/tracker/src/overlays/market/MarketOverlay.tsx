@@ -12,7 +12,7 @@ import {
   salvageYield,
 } from '@core/salvage.ts';
 import { parseRank, rankAgrees, type RankedName } from '@core/market-names.ts';
-import { itemTable } from '@/features/items/table';
+import { useItems } from '@/features/items/table';
 import { pricing } from '@/features/items/prices';
 import { compact } from '@/lib/format';
 import { useOverlay } from '@/shell/useOverlay';
@@ -312,7 +312,7 @@ function essencePrice(id: string): number {
 const STOP_PHRASES = ['за каждый предмет', 'for each item', 'страница', 'купить'];
 
 /** One frame of OCR text -> badge per row we could read with confidence. */
-function readFrame(frame: MarketFrame, index: NameIndex, unit: (id: string) => number): Badge[] {
+function readFrame(frame: MarketFrame, index: NameIndex, unit: (id: string) => number, itemTable: ReturnType<typeof useItems>): Badge[] {
   // Anchor on prices: a row without a readable price has nothing to verdict.
   const prices = frame.lines
     .map((line) => ({ line, gold: parsePrice(line.text) }))
@@ -493,6 +493,7 @@ const COLORS: Record<Verdict, { border: string; bg: string; text: string }> = {
 
 export function MarketOverlay() {
   const { config } = useOverlay();
+  const itemTable = useItems();
   const [frame, setFrame] = useState<MarketFrame | null>(null);
   const index = useMemo(buildIndex, []);
 
@@ -505,10 +506,10 @@ export function MarketOverlay() {
 
   const badges = useMemo(() => {
     if (frame === null || !frame.open) return [];
-    const out = readFrame(frame, index, priced.unit);
+    const out = readFrame(frame, index, priced.unit, itemTable);
     saveLedger();
     return out;
-  }, [frame, index, priced]);
+  }, [frame, index, priced, itemTable]);
 
   // The badge column sits just left of the listing card, over the game's own
   // backdrop — measured against the same 2560-wide frame the watcher uses.

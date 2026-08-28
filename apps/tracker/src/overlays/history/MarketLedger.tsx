@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { getLanguage, t } from '@core/i18n.ts';
 import { LEGENDARY_ESSENCE_ID, MYTHIC_ESSENCE_ID } from '@core/salvage.ts';
 import ruNames from 'aow5-shared/public/data/locale.ru.names.json';
-import { itemTable } from '@/features/items/table';
+import { useItems } from '@/features/items/table';
 import { compact } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -34,7 +34,7 @@ interface Row {
   essence: boolean;
 }
 
-function readRows(): Row[] {
+function readRows(itemTable: ReturnType<typeof useItems>): Row[] {
   let raw: Record<string, { g: number; t: number }[]>;
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(LEDGER_KEY) ?? '{}');
@@ -69,9 +69,10 @@ function readRows(): Row[] {
 }
 
 export function MarketLedger() {
+  const itemTable = useItems();
   const [open, setOpen] = useState(false);
   const [generation, setGeneration] = useState(0);
-  const rows = useMemo(readRows, [generation, open]);
+  const rows = useMemo(() => readRows(itemTable), [generation, open, itemTable]);
 
   if (!open && rows.length === 0) return null;
 
