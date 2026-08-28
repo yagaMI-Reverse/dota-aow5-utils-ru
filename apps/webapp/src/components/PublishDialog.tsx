@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CopyBlock } from '@/components/CopyBlock';
 import { createBuild } from '@/builds/api';
 import type { SiteStrings } from '@/i18n/site';
-import { ApiFailure, signInUrl } from '@/lib/api';
+import { ApiFailure } from '@/lib/api';
 import { setMe, useMe } from '@/auth/useMe';
 import { buildPath } from '@/lib/routes';
 
@@ -23,10 +23,19 @@ import { buildPath } from '@/lib/routes';
  */
 export function PublishDialog({
   payload,
+  referral,
   site,
   onClose,
 }: {
   payload: string;
+  /**
+   * The code in the planner's field, saved with the build.
+   *
+   * It goes up here rather than in a second request, because a build published
+   * without one and corrected afterwards is a build somebody has already opened
+   * with the wrong code on it.
+   */
+  referral: string;
   site: SiteStrings;
   onClose: () => void;
 }) {
@@ -41,7 +50,7 @@ export function PublishDialog({
   async function submit(status: 'draft' | 'published') {
     setBusy(true);
     try {
-      const build = await createBuild({ title, body, payload, status });
+      const build = await createBuild({ title, body, payload, referral, status });
       setPublished(build);
       // The header shows "n of 5"; leaving it stale the moment somebody
       // publishes is exactly the kind of small wrongness that reads as a bug.
@@ -63,16 +72,6 @@ export function PublishDialog({
     return (
       <Panel title={t.published} lead={t.publishedLead} onClose={onClose}>
         <CopyBlock site={site}>{url}</CopyBlock>
-      </Panel>
-    );
-  }
-
-  if (me.status === 'ready' && me.user === null) {
-    return (
-      <Panel title={t.publishTitle} lead={t.signInToPublish} onClose={onClose}>
-        <Button asChild>
-          <a href={signInUrl()}>{site.auth.signIn}</a>
-        </Button>
       </Panel>
     );
   }

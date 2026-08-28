@@ -14,37 +14,31 @@ import { ru } from './locale.ru.ts';
  * the string the developer wrote. A language that cannot drift from the source
  * is a language that cannot be half-translated.
  */
-export type Language = 'ru' | 'en';
-
-export const LANGUAGES: Language[] = ['ru', 'en'];
-
-/** What each language calls itself, which is the only sane thing to list. */
-export const LANGUAGE_NAMES: Record<Language, string> = { ru: 'Русский', en: 'English' };
-
-const DICTIONARIES: Record<Language, Record<string, string>> = { ru, en: {} };
-
-let active: Record<string, string> = ru;
-let current: Language = 'ru';
+import type { Locale } from './locale.ts';
 
 /**
- * Switch languages.
- *
- * Both processes call it — main for its menus and dialogs, each renderer for
- * its own window — because a module-level dictionary is per-process and there
- * is no shared memory between them. Config is what keeps them agreeing.
+ * This layer serves what upstream's catalog system does not cover: the main
+ * process (tray, dialogs, setup notes) and the fork's own features (the
+ * Exchange lens, the setup section, the market ledger). Renderer chrome is
+ * upstream's `useMessages()` — this dictionary is the fork's, keyed by its
+ * English source strings.
  */
-export function setLanguage(language: Language): void {
-  current = DICTIONARIES[language] ? language : 'en';
-  active = DICTIONARIES[current] ?? {};
+const DICTIONARIES: Partial<Record<Locale, Record<string, string>>> = { ru };
+
+let active: Record<string, string> = ru;
+let current: Locale = 'ru';
+
+/**
+ * Switch languages. Locales without a fork dictionary — Chinese today — fall
+ * through to the English source strings, which is the contract everywhere.
+ */
+export function setLanguage(language: Locale): void {
+  current = language;
+  active = DICTIONARIES[language] ?? {};
 }
 
-export function getLanguage(): Language {
+export function getLanguage(): Locale {
   return current;
-}
-
-/** Anything that is not a language we ship reads as English. */
-export function readLanguage(value: unknown): Language {
-  return value === 'ru' || value === 'en' ? value : 'ru';
 }
 
 /** The string, translated if we have it, else the English it was written in. */

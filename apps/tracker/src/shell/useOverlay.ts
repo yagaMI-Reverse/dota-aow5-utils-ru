@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { OPACITY, UI_SCALE, type OverlayId, type TrackerConfig } from '@core/ipc.ts';
-import { setLanguage } from '@core/i18n.ts';
+import { accelerator, DEFAULT_SHORTCUTS, shortcutLabel, type Shortcuts } from '@core/shortcuts.ts';
+import { DEFAULT_STYLE, type TrackerStyle } from '@core/style.ts';
 
 /**
  * Everything about the window this renderer is drawing into.
@@ -42,6 +43,7 @@ export interface OverlayChrome {
   setScale: (next: number) => void;
   setOpacity: (next: number) => void;
   setTransparentBackground: (next: boolean) => void;
+  setStyle: (next: TrackerStyle) => void;
 }
 
 export function useOverlay(): OverlayChrome {
@@ -49,29 +51,16 @@ export function useOverlay(): OverlayChrome {
   const [config, setConfig] = useState<TrackerConfig | null>(null);
   const [interactive, setInteractive] = useState(false);
 
-  /*
-   * The dictionary is swapped before the state that triggers the re-render, so
-   * the very first paint after a language change is already in the new one.
-   * `t()` reads a module-level dictionary rather than a context: it is called
-   * from plain functions as well as components, and threading a provider
-   * through every one of them would be a great deal of ceremony for a value
-   * that changes about once in the life of an install.
-   */
-  const applyConfig = useCallback((next: TrackerConfig) => {
-    setLanguage(next.language);
-    setConfig(next);
-  }, []);
-
   useEffect(() => {
     const api = window.tracker;
-    const offConfig = api.onConfig(applyConfig);
+    const offConfig = api.onConfig(setConfig);
     const offInteractive = api.onInteractive(setInteractive);
-    void api.getConfig().then(applyConfig);
+    void api.getConfig().then(setConfig);
     return () => {
       offConfig();
       offInteractive();
     };
-  }, [applyConfig]);
+  }, []);
 
   const scale = config?.uiScale ?? UI_SCALE.default;
 
@@ -100,6 +89,21 @@ export function useOverlay(): OverlayChrome {
     document.documentElement.style.setProperty('--hud-panel-alpha', `${panelAlpha.toFixed(2)}%`);
   }, [panelAlpha]);
 
+  /*
+   * The skin, as an attribute on the root element.
+   *
+   * `styles.css` defines the palette once on `:root` and overrides it under
+   * `[data-style='torchlight']`, so switching is one attribute write and no
+   * remount — the same trick `--ui-scale` and `--hud-panel-alpha` above use,
+   * and for the same reason: these are settings the player judges by looking at
+   * the result, so the result has to keep up with the click.
+   */
+  const style = config?.style ?? DEFAULT_STYLE;
+
+  useEffect(() => {
+    document.documentElement.dataset['style'] = style;
+  }, [style]);
+
   const collapsed = config?.overlays[id]?.collapsed ?? false;
 
   const toggleCollapsed = useCallback(() => {
@@ -112,8 +116,19 @@ export function useOverlay(): OverlayChrome {
     (next: boolean) => void window.tracker.setConfig({ transparentBackground: next }),
     [],
   );
+  const setStyle = useCallback((next: TrackerStyle) => void window.tracker.setConfig({ style: next }), []);
 
-  return { id, config, interactive, collapsed, toggleCollapsed, setScale, setOpacity, setTransparentBackground };
+  return {
+    id,
+    config,
+    interactive,
+    collapsed,
+    toggleCollapsed,
+    setScale,
+    setOpacity,
+    setTransparentBackground,
+    setStyle,
+  };
 }
 
 /**
@@ -136,4 +151,20 @@ export function useScaleShortcuts(scale: number, setScale: (next: number) => voi
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [scale, setScale]);
+}
+
+/**
+ * What to call the focus chord in the hint at the bottom of every overlay.
+ *
+ * One place, because there are four windows drawing that line and the whole
+ * point of a rebindable key is that the hint follows it — a panel still saying
+ * `Ctrl+Alt+T` after somebody moved it to `Alt+G` is worse than no hint, since
+ * it is a wrong instruction rather than a missing one.
+ *
+ * `DEFAULT_SHORTCUTS` for the frame before the config arrives over IPC: that is
+ * what a fresh profile will turn out to have, and it is the least surprising
+ * thing to show for the one frame it is on screen.
+ */
+export function focusHotkey(config: { shortcuts?: Shortcuts } | null): string {
+  return shortcutLabel(accelerator(config?.shortcuts ?? DEFAULT_SHORTCUTS, 'focus'));
 }

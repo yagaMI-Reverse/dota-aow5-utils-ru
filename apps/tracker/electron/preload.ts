@@ -1,11 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TrackerEvent } from '../core/events.ts';
 import type { SessionHistory } from '../core/history.ts';
+import type { SoundHit, SoundSearchResponse } from 'aow5-api-contract';
+import type { PackFail } from '../core/packs.ts';
+import type { ShortcutId } from '../core/shortcuts.ts';
 import {
   OVERLAY_IDS,
   type LogTrim,
   type OverlayId,
   type MarketFrame,
+  type PackInstall,
+  type PackPreview,
+  type SearchFail,
   type SessionSnapshot,
   type SetupStatus,
   type SetupStepResult,
@@ -34,6 +40,21 @@ function currentOverlay(): OverlayId {
   return OVERLAY_IDS.find((id) => id === asked) ?? 'farm';
 }
 
+/**
+ * What Windows is set to, as main read it off `app.getLocale()`.
+ *
+ * On the query string beside `overlay` rather than fetched over a channel,
+ * because it is the same kind of fact: fixed for the life of the window, known
+ * before the renderer starts, and needed by the very first paint — a language
+ * that arrived a frame late would show every window in English and then swap.
+ *
+ * Empty when a window was somehow opened without it, which `resolveLocale`
+ * reads as "no idea" and answers with English.
+ */
+function systemLocale(): string {
+  return new URLSearchParams(window.location.search).get('locale') ?? '';
+}
+
 const overlay = currentOverlay();
 
 /** Subscribes and hands back an unsubscribe, so React effects clean up properly. */
@@ -47,6 +68,7 @@ function on<T>(channel: string, handler: (payload: T) => void): () => void {
 
 const api: TrackerApi = {
   overlay,
+  systemLocale: systemLocale(),
 
   onEvent: (handler: (event: TrackerEvent) => void) => on<TrackerEvent>('tracker:event', handler),
   onStatus: (handler: (status: TrackerStatus) => void) => on<TrackerStatus>('tracker:status', handler),
@@ -54,6 +76,8 @@ const api: TrackerApi = {
   onInteractive: (handler: (interactive: boolean) => void) => on<boolean>('tracker:interactive', handler),
   onSkipped: (handler: (skipped: SkippedLine[]) => void) => on<SkippedLine[]>('tracker:skipped', handler),
   onMarket: (handler: (frame: MarketFrame) => void) => on<MarketFrame>('tracker:market', handler),
+  onAction: (handler: (action: ShortcutId) => void) => on<ShortcutId>('tracker:action', handler),
+  onUnavailable: (handler: (chords: string[]) => void) => on<string[]>('tracker:unavailable', handler),
   onUpdate: (handler: (state: UpdateState) => void) => on<UpdateState>('tracker:update', handler),
 
   getConfig: (): Promise<TrackerConfig> => ipcRenderer.invoke('tracker:getConfig'),
@@ -73,6 +97,14 @@ const api: TrackerApi = {
   getSession: (): Promise<SessionSnapshot> => ipcRenderer.invoke('tracker:getSession'),
   pickSound: (): Promise<string | null> => ipcRenderer.invoke('tracker:pickSound'),
   readSound: (ref: string): Promise<Uint8Array | null> => ipcRenderer.invoke('tracker:readSound', ref),
+  previewPack: (url: string): Promise<PackPreview> => ipcRenderer.invoke('tracker:previewPack', url),
+  installPack: (url: string): Promise<PackInstall | { error: PackFail }> =>
+    ipcRenderer.invoke('tracker:installPack', url),
+  removePack: (id: string): Promise<void> => ipcRenderer.invoke('tracker:removePack', id),
+  searchSounds: (query: string, page: number): Promise<SoundSearchResponse | { error: SearchFail }> =>
+    ipcRenderer.invoke('tracker:searchSounds', query, page),
+  importSound: (hit: SoundHit): Promise<{ ref: string } | { error: PackFail }> =>
+    ipcRenderer.invoke('tracker:importSound', hit),
 
   clearHistory: (): Promise<void> => ipcRenderer.invoke('tracker:clearHistory'),
   deleteSessions: (ids: number[]): Promise<void> => ipcRenderer.invoke('tracker:deleteSessions', ids),

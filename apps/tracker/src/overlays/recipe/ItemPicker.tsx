@@ -3,9 +3,9 @@ import { Hammer, Package, Plus } from 'lucide-react';
 import { iconUrl, qualityColor } from '@core/items.ts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { itemTable } from '@/features/items/table';
+import { useItems } from '@/features/items/table';
+import { useMessages } from '@/i18n';
 import { cn } from '@/lib/utils';
-import { t } from '@core/i18n.ts';
 
 /**
  * Picks the next thing to collect toward.
@@ -31,6 +31,8 @@ interface Props {
 const MAX_RESULTS = 7;
 
 export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
+  const m = useMessages();
+  const itemTable = useItems();
   const [query, setQuery] = useState('');
   const [recipesOnly, setRecipesOnly] = useState(true);
 
@@ -42,7 +44,9 @@ export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
     // like "no recipes called that".
     const found = itemTable.search(text, MAX_RESULTS * 8);
     return (recipesOnly ? found.filter((item) => craftable(item.id)) : found).slice(0, MAX_RESULTS);
-  }, [query, recipesOnly, craftable]);
+    // `itemTable` is memoized per language: searching in Chinese has to match
+    // against the Chinese names, not against whichever table loaded first.
+  }, [query, recipesOnly, craftable, itemTable]);
 
   return (
     // A width of its own: the window measures its contents now, and a search
@@ -50,8 +54,12 @@ export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
     // the window on every keystroke.
     <div className="hud-panel flex w-60 flex-col gap-1.5 p-2">
       <div className="flex gap-1">
-        <Mode active={recipesOnly} onClick={() => setRecipesOnly(true)} icon={<Hammer className="size-3" />}>{t('recipes')}</Mode>
-        <Mode active={!recipesOnly} onClick={() => setRecipesOnly(false)} icon={<Package className="size-3" />}>{t('any item')}</Mode>
+        <Mode active={recipesOnly} onClick={() => setRecipesOnly(true)} icon={<Hammer className="size-3" />}>
+          {m.recipe.picker.recipes}
+        </Mode>
+        <Mode active={!recipesOnly} onClick={() => setRecipesOnly(false)} icon={<Package className="size-3" />}>
+          {m.recipe.picker.anyItem}
+        </Mode>
       </div>
 
       <Input
@@ -59,17 +67,13 @@ export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => e.key === 'Escape' && onCancel()}
-        placeholder={recipesOnly ? t('Search recipes…') : t('Search items…')}
+        placeholder={recipesOnly ? m.recipe.picker.searchRecipes : m.recipe.picker.searchItems}
         className="h-7 text-xs"
       />
 
       {query.trim() !== '' && results.length === 0 && (
         <p className="px-1 text-[0.625rem] text-muted-foreground">
-          {loading
-            ? t('Loading recipes…')
-            : recipesOnly
-              ? t('Nothing craftable by that name. Try “any item”.')
-              : t('No item by that name.')}
+          {loading ? m.recipe.picker.loading : recipesOnly ? m.recipe.picker.noRecipe : m.recipe.picker.noItem}
         </p>
       )}
 
@@ -94,7 +98,9 @@ export function ItemPicker({ craftable, loading, onPick, onCancel }: Props) {
         ))}
       </ul>
 
-      <Button variant="outline" className="h-6 w-full text-[0.625rem]" onClick={onCancel}>{t('Cancel')}</Button>
+      <Button variant="outline" className="h-6 w-full text-[0.625rem]" onClick={onCancel}>
+        {m.common.cancel}
+      </Button>
     </div>
   );
 }

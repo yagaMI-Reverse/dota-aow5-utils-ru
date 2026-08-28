@@ -1,8 +1,12 @@
 import type { CardId } from './cards.ts';
 import type { TrackerEvent } from './events.ts';
 import type { SessionHistory } from './history.ts';
+import type { LanguageSetting } from './locale.ts';
+import type { SoundHit, SoundSearchResponse } from 'aow5-api-contract';
+import type { PackFail, SoundPack } from './packs.ts';
+import type { Shortcuts, ShortcutId } from './shortcuts.ts';
 import type { SoundSettings } from './sounds.ts';
-import type { Language } from './i18n.ts';
+import type { TrackerStyle } from './style.ts';
 
 /**
  * The contract across the preload bridge.
@@ -190,6 +194,25 @@ export const OPACITY = { min: 0, max: 1, step: 0.02, default: 0.92 } as const;
 
 export interface TrackerConfig {
   source: SourceKind;
+  /**
+   * Which language the overlay speaks — and with it, which of the extracted
+   * name tables it reads.
+   *
+   * `auto` by default, resolved per window against `app.getLocale()`. It is the
+   * one setting whose stored value is deliberately *not* a language: writing
+   * the resolved locale into the file at first launch would pin a machine to
+   * whatever Windows was set to the day the tracker was installed. See
+   * `core/locale.ts`.
+   */
+  language: LanguageSetting;
+  /**
+   * Which skin the panels are drawn in.
+   *
+   * A set of CSS tokens and nothing else — same components, same layout, same
+   * measurements. See `core/style.ts` for why that boundary is drawn where it
+   * is.
+   */
+  style: TrackerStyle;
   logFile: string;
   /** Item ids pinned to the tracked list. Empty means "show everything". */
   tracked: string[];
@@ -223,6 +246,28 @@ export interface TrackerConfig {
   halvePrices: boolean;
   /** What to play when something drops, and how loudly. See `core/sounds.ts`. */
   sounds: SoundSettings;
+  /**
+   * Sounds that came from somewhere else, by pack id. See `core/packs.ts`.
+   *
+   * Beside `sounds` rather than inside it, because they are different kinds of
+   * thing: `sounds` is what the player decided, this is the library those
+   * decisions can point at. It is also the half that makes a config worth
+   * sharing — a binding to `C:\Users\someone\boom.mp3` means nothing on anybody
+   * else's machine, and a binding to `pack:jackpots/boom` means the same thing
+   * everywhere the pack has been fetched.
+   */
+  soundPacks: Record<string, SoundPack>;
+  /**
+   * The server the sound search is asked through, or empty to switch it off.
+   *
+   * A setting rather than a constant, and this is the one network dependency
+   * the tracker has — see `core/items.ts` on why the icons stopped being one.
+   * The difference is that a catalogue cannot be bundled: it is half a million
+   * sounds that change daily. So it is named here where somebody can point it
+   * somewhere else or empty it, and everything it powers degrades to the
+   * picker it was before rather than to an error.
+   */
+  soundSearchUrl: string;
   /**
    * Keep Dota's console log down to the lines this tracker reads.
    *
@@ -259,7 +304,19 @@ export interface TrackerConfig {
    */
   uiScale: number;
   mockSpeed: number;
+  /**
+   * The focus accelerator, as one string.
+   *
+   * Superseded by `shortcuts` in 0.1.9 and kept because it is what an older
+   * profile has in it — `readShortcuts` reads it once, to carry a player who
+   * had moved off the default across the upgrade. Nothing registers it any
+   * more, and nothing writes it.
+   *
+   * @deprecated read `shortcuts` instead; `accelerator(config.shortcuts, 'focus')`.
+   */
   hotkey: string;
+  /** Every global key the tracker registers. See `core/shortcuts.ts`. */
+  shortcuts: Shortcuts;
   overlays: Record<OverlayId, OverlayView>;
   /**
    * What the recipe panel is counting toward.
@@ -311,15 +368,6 @@ export interface TrackerConfig {
   autoResume: boolean;
 
   /**
-   * Which language the interface speaks.
-   *
-   * Stored rather than taken from the OS: the player who wants the game in one
-   * language and their tools in another is common enough, and a tracker that
-   * silently followed Windows would give them no way to say so.
-   */
-  language: Language;
-
-  /**
    * The Exchange lens: read the game's market window off the screen and badge
    * each row with a verdict.
    *
@@ -360,6 +408,55 @@ export interface LogTrim {
   kept: number;
   /** The OS error code behind an `in-use`, when there was one. */
   error?: string;
+}
+
+/**
+ * What a pack URL turned out to be, before anything is fetched from it.
+ *
+ * The whole reason this type exists separately from `PackInstall` is that the
+ * two steps are separate: a pasted link buys a description, and the sounds are
+ * only fetched once somebody has read it. An app that downloaded on paste would
+ * be an app that goes to arbitrary URLs because a Discord message told it to.
+ */
+export interface PackPreview {
+  /** What would be installed, or null when `error` says why not. */
+  pack: SoundPack | null;
+  /** Sound ids the manifest named and the reader would not take. */
+  dropped: string[];
+  /** What the download would actually transfer — the sounds not already stored. */
+  bytes: number;
+  /** How many of them there are. Zero means it is all here already. */
+  missing: number;
+  error: PackFail | null;
+}
+
+/**
+ * Why a sound search came back with nothing to show.
+ *
+ * Separate from `PackFail` even though two of the names repeat, because the
+ * sentences a settings window puts against them are different. "The server has
+ * no key" is something the person running the server can fix; "you are offline"
+ * is not; "search is switched off" is a field in this player's own config. One
+ * union that meant all three would render as one apologetic shrug.
+ */
+export type SearchFail =
+  /** `soundSearchUrl` is empty — the player turned it off, or never had it. */
+  | 'off'
+  /** The tracker could not reach the server at all. */
+  | 'offline'
+  /** The server is there and has no catalogue key. Nothing the player can do. */
+  | 'unconfigured'
+  /** Too many searches, here or upstream. Try again shortly. */
+  | 'busy'
+  /** It answered, and not with a list of sounds. */
+  | 'failed';
+
+/** And what installing it did. Per sound, because one dead link is not a dead pack. */
+export interface PackInstall {
+  pack: SoundPack;
+  /** Sound ids now in the store, including the ones that already were. */
+  installed: string[];
+  failed: { id: string; reason: PackFail }[];
 }
 
 /**
@@ -507,6 +604,17 @@ export interface TrackerApi {
   /** Which overlay this renderer is. Set by the preload from the window's query string. */
   readonly overlay: OverlayId;
 
+  /**
+   * What Windows is set to, as a BCP 47 tag — `en-GB`, `ru-RU`, `zh-CN`.
+   *
+   * Carried in the same query string as `overlay`, and readonly for the same
+   * reason: it cannot change while the process is running, so a channel to
+   * re-ask for it would be a channel that never fires. It is the input to
+   * `resolveLocale`, and it is only consulted while the language setting says
+   * `auto` — which is its default.
+   */
+  readonly systemLocale: string;
+
   onEvent: (handler: (event: TrackerEvent) => void) => Unsubscribe;
   onStatus: (handler: (status: TrackerStatus) => void) => Unsubscribe;
   onConfig: (handler: (config: TrackerConfig) => void) => Unsubscribe;
@@ -514,6 +622,29 @@ export interface TrackerApi {
   onSkipped: (handler: (skipped: SkippedLine[]) => void) => Unsubscribe;
   /** Frames from the Exchange watcher. Only the market overlay listens. */
   onMarket: (handler: (frame: MarketFrame) => void) => Unsubscribe;
+  /**
+   * A global shortcut was pressed that only the renderer can carry out.
+   *
+   * Main owns the keys because they have to work while the overlay is
+   * click-through and unfocused, and it owns nothing else about them: whether
+   * the last room counts as a death is a fact about the session, and the
+   * session lives in `useSession` in the farm overlay. So the key arrives here
+   * as the *action*, not as its effect.
+   *
+   * `focus` is deliberately absent — main handles that one itself, since
+   * click-through is a window property and no renderer can change it.
+   */
+  onAction: (handler: (action: ShortcutId) => void) => Unsubscribe;
+  /**
+   * Accelerators another application already owns, as main last found them.
+   *
+   * `globalShortcut.register` returns false for a chord that is taken and
+   * raises nothing, so a shortcut on one is a key that silently does nothing
+   * forever. This is the only way the settings window can say so beside the
+   * field that caused it — and it arrives after every rebinding, so the answer
+   * is about the chord just typed rather than about the one at launch.
+   */
+  onUnavailable: (handler: (chords: string[]) => void) => Unsubscribe;
 
   getConfig: () => Promise<TrackerConfig>;
   setConfig: (patch: Partial<TrackerConfig>) => Promise<TrackerConfig>;
@@ -582,8 +713,63 @@ export interface TrackerApi {
    * refused by the page's own CSP — so the bytes come across and are decoded
    * in memory. Null when the file is gone, unreadable, or larger than a
    * notification has any business being.
+   *
+   * Takes any `SoundRef` that is not a built-in: a path the player picked, or a
+   * `pack:` reference, which main resolves through the installed packs and the
+   * content store. The renderer never learns the difference, which is why
+   * adding packs cost the player nothing.
    */
   readSound: (ref: string) => Promise<Uint8Array | null>;
+
+  /**
+   * Read a pack manifest and report what installing it would cost.
+   *
+   * Fetches the manifest and nothing else — see `PackPreview`. Never rejects:
+   * every way this can go wrong is a `PackFail` code the settings window
+   * translates, because "could not add pack" with a stack trace behind it is
+   * not a thing to show somebody who pasted a link.
+   */
+  previewPack: (url: string) => Promise<PackPreview>;
+  /**
+   * Fetch a previewed pack's sounds and keep it.
+   *
+   * Takes the URL again rather than the previewed pack: what a renderer hands
+   * back is not evidence of what the manifest said, and re-reading it costs one
+   * request. Resolves to what landed and what did not; the config is saved and
+   * broadcast before it returns, so the caller can simply re-render.
+   */
+  installPack: (url: string) => Promise<PackInstall | { error: PackFail }>;
+  /**
+   * Forget a pack, and delete the stored sounds nothing else refers to.
+   *
+   * Bindings pointing into it are left exactly as they are. A pack removed by
+   * accident is one re-install away, and a binding silently rewritten to
+   * silence is a decision the player never gets told about.
+   */
+  removePack: (id: string) => Promise<void>;
+
+  /**
+   * Search the sound catalogue, through this deployment's own server.
+   *
+   * The one call in this bridge that leaves the machine on the player's behalf,
+   * and it carries a search term and nothing else — no id, no config, no
+   * account. Never rejects: every failure is a `SearchFail` code the picker
+   * renders as a sentence.
+   *
+   * Nothing is fetched or stored by searching. A hit is a name, a length, a
+   * licence and a URL; the audio arrives only if `importSound` is called.
+   */
+  searchSounds: (query: string, page: number) => Promise<SoundSearchResponse | { error: SearchFail }>;
+  /**
+   * Fetch one search hit and keep it, resolving to the ref it can be bound by.
+   *
+   * The preview mp3 comes straight from the catalogue's own CDN — not through
+   * the search server, which never touches audio — and lands in the same
+   * content store the packs use, recorded as an entry in the imported pack. So
+   * an imported sound is a pack sound in every way that matters: it appears in
+   * every picker, it survives a restart, and it travels with a shared config.
+   */
+  importSound: (hit: SoundHit) => Promise<{ ref: string } | { error: PackFail }>;
 
   /**
    * Delete these sessions and the runs recorded under them.

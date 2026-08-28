@@ -1,0 +1,109 @@
+  • electron-builder  version=26.15.3 os=10.0.26200
+  • loaded configuration  file=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\electron-builder.yml
+  • author is missed in the package.json  appPackageFile=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\package.json
+  • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker
+  • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker
+  • detected workspace root for project using process environment  pm=pnpm config=undefined resolved=undefined projectDir=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker
+  • executing @electron/rebuild  electronVersion=38.8.6 arch=x64 buildFromSource=false workspaceRoot=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=38.8.6 appOutDir=release\win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\win-unpacked
+  • searching for node modules  pm=pnpm searchDir=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker
+  • updating asar integrity executable resource  executablePath=release\win-unpacked\AOW5 Tracker.exe
+  • downloaded      label=icons-bundle.tar.gz progress=100%
+  • signing with signtool.exe  path=release\win-unpacked\AOW5 Tracker.exe
+  • building        target=zip arch=x64 file=release\AOW5-Tracker-0.2.0-win.zip
+  • downloaded      label=7zip-win-x64.tar.gz progress=100%
+  • building        target=nsis file=release\AOW5-Tracker-Setup-0.2.0.exe archs=x64 oneClick=false perMachine=false
+  • downloaded      label=nsis-3.0.4.1.7z progress=100%
+  • signing with signtool.exe  path=release\win-unpacked\resources\elevate.exe
+  • downloaded      label=nsis-resources-3.4.1.7z progress=100%
+  ⨯ C:\Users\Ilay\AppData\Local\electron-builder\Cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\Bin\makensis.exe process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1
+Output:
+Command line defined: "APP_ID=com.aksodame.aow5tracker"
+Command line defined: "APP_GUID=d2b7daf7-7bbe-51d3-9403-05c3a469d387"
+Command line defined: "UNINSTALL_APP_KEY=d2b7daf7-7bbe-51d3-9403-05c3a469d387"
+Command line defined: "PRODUCT_NAME=AOW5 Tracker"
+Command line defined: "PRODUCT_FILENAME=AOW5 Tracker"
+Command line defined: "APP_FILENAME=AOW5 Tracker"
+Command line defined: "APP_DESCRIPTION=Always-on-top farm tracker overlay for the Dota 2 custom game Age of Weapons 5"
+Command line defined: "VERSION=0.2.0"
+Command line defined: "PROJECT_DIR=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker"
+Command line defined: "BUILD_RESOURCES_DIR=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\build"
+Command line defined: "APP_PACKAGE_NAME=aow5-tracker"
+Command line defined: "MUI_ICON=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\.icon-ico\icon.ico"
+Command line defined: "MUI_UNICON=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\.icon-ico\icon.ico"
+Command line defined: "APP_64=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\aow5-tracker-0.2.0-x64.nsis.7z"
+Command line defined: "APP_64_NAME=aow5-tracker-0.2.0-x64.nsis.7z"
+Command line defined: "APP_64_HASH=5564B4A5E48F8F2AA21B23F51B0B1C4A0922AE2149684CD973B80A1C038B1D3FE85583CBC6E2854C077035DD8125EB18F9311082DE38E0F35AB59DBD72C7601B"
+Command line defined: "APP_64_UNPACKED_SIZE=334488"
+Command line defined: "APP_INSTALLER_STORE_FILE=aow5-tracker-updater\installer.exe"
+Command line defined: "COMPRESSION_METHOD=7z"
+Command line defined: "HIDE_RUN_AFTER_FINISH"
+Command line defined: "MULTIUSER_INSTALLMODE_ALLOW_ELEVATION"
+Command line defined: "INSTALL_MODE_PER_ALL_USERS_REQUIRED"
+Command line defined: "allowToChangeInstallationDirectory"
+Command line defined: "SHORTCUT_NAME=AOW5 Tracker"
+Command line defined: "UNINSTALL_DISPLAY_NAME=AOW5 Tracker 0.2.0"
+Command line defined: "MUI_WELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "MUI_UNWELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "ESTIMATED_SIZE=334488"
+Command line defined: "COMPRESS=auto"
+Command line defined: "BUILD_UNINSTALLER"
+Command line defined: "UNINSTALLER_OUT_FILE=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\AOW5-Tracker-Setup-0.2.0.__uninstaller.exe"
+Processing config: C:\Users\Ilay\AppData\Local\electron-builder\Cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\nsisconf.nsh
+Processing script file: "<stdin>" (UTF8)
+
+Error output:
+!include: could not open file: "C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\node_modules\.pnpm\app-builder-lib@26.15.3_ug2rqhaof2h6ivli7jlbt7jwg4\node_modules\app-builder-lib\templates\nsis\include\allowOnlyOneInstallerInstance.nsh"
+Error in script "<stdin>" on line 88 -- aborting creation process
+  failedTask=build stackTrace=Error: C:\Users\Ilay\AppData\Local\electron-builder\Cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\Bin\makensis.exe process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1
+Output:
+Command line defined: "APP_ID=com.aksodame.aow5tracker"
+Command line defined: "APP_GUID=d2b7daf7-7bbe-51d3-9403-05c3a469d387"
+Command line defined: "UNINSTALL_APP_KEY=d2b7daf7-7bbe-51d3-9403-05c3a469d387"
+Command line defined: "PRODUCT_NAME=AOW5 Tracker"
+Command line defined: "PRODUCT_FILENAME=AOW5 Tracker"
+Command line defined: "APP_FILENAME=AOW5 Tracker"
+Command line defined: "APP_DESCRIPTION=Always-on-top farm tracker overlay for the Dota 2 custom game Age of Weapons 5"
+Command line defined: "VERSION=0.2.0"
+Command line defined: "PROJECT_DIR=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker"
+Command line defined: "BUILD_RESOURCES_DIR=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\build"
+Command line defined: "APP_PACKAGE_NAME=aow5-tracker"
+Command line defined: "MUI_ICON=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\.icon-ico\icon.ico"
+Command line defined: "MUI_UNICON=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\.icon-ico\icon.ico"
+Command line defined: "APP_64=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\aow5-tracker-0.2.0-x64.nsis.7z"
+Command line defined: "APP_64_NAME=aow5-tracker-0.2.0-x64.nsis.7z"
+Command line defined: "APP_64_HASH=5564B4A5E48F8F2AA21B23F51B0B1C4A0922AE2149684CD973B80A1C038B1D3FE85583CBC6E2854C077035DD8125EB18F9311082DE38E0F35AB59DBD72C7601B"
+Command line defined: "APP_64_UNPACKED_SIZE=334488"
+Command line defined: "APP_INSTALLER_STORE_FILE=aow5-tracker-updater\installer.exe"
+Command line defined: "COMPRESSION_METHOD=7z"
+Command line defined: "HIDE_RUN_AFTER_FINISH"
+Command line defined: "MULTIUSER_INSTALLMODE_ALLOW_ELEVATION"
+Command line defined: "INSTALL_MODE_PER_ALL_USERS_REQUIRED"
+Command line defined: "allowToChangeInstallationDirectory"
+Command line defined: "SHORTCUT_NAME=AOW5 Tracker"
+Command line defined: "UNINSTALL_DISPLAY_NAME=AOW5 Tracker 0.2.0"
+Command line defined: "MUI_WELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "MUI_UNWELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "ESTIMATED_SIZE=334488"
+Command line defined: "COMPRESS=auto"
+Command line defined: "BUILD_UNINSTALLER"
+Command line defined: "UNINSTALLER_OUT_FILE=C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\apps\tracker\release\AOW5-Tracker-Setup-0.2.0.__uninstaller.exe"
+Processing config: C:\Users\Ilay\AppData\Local\electron-builder\Cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\nsisconf.nsh
+Processing script file: "<stdin>" (UTF8)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           Error output:
+!include: could not open file: "C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\node_modules\.pnpm\app-builder-lib@26.15.3_ug2rqhaof2h6ivli7jlbt7jwg4\node_modules\app-builder-lib\templates\nsis\include\allowOnlyOneInstallerInstance.nsh"
+Error in script "<stdin>" on line 88 -- aborting creation process
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               at ChildProcess.<anonymous> (C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\node_modules\.pnpm\builder-util@26.15.3\node_modules\builder-util\src\util.ts:313:16)
+    at Object.onceWrapper (node:events:631:26)
+    at ChildProcess.emit (node:events:509:28)
+    at ChildProcess.cp.emit (C:\Users\Ilay\AppData\Local\Temp\claude\C--Claude\981793d6-e193-4d2a-adf9-317d07550e0d\scratchpad\ru\repo\node_modules\.pnpm\cross-spawn@7.0.6\node_modules\cross-spawn\lib\enoent.js:34:29)
+    at maybeClose (node:internal/child_process:1124:16)
+    at Process.ChildProcess._handle.onexit (node:internal/child_process:306:5)

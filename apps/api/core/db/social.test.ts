@@ -15,7 +15,8 @@ import {
 import { createBuild, findBuildById } from './builds.ts';
 import { openDb, runMigrations, type Db } from './open.ts';
 import { builds, users } from './schema.ts';
-import { upsertUserFromSteam, type UserRow } from './users.ts';
+import { createUser, type UserRow } from './users.ts';
+import { nicknameKey } from '../auth/nickname.ts';
 import { findVote, setVote } from './votes.ts';
 
 const MIGRATIONS = fileURLToPath(new URL('../../drizzle', import.meta.url));
@@ -36,6 +37,7 @@ function fixture() {
       slug: 'guideslug1',
       fields: { title: 'a build', body: '' },
       payload: '6.AAAA',
+      referral: '',
       facets: { codecVersion: 6, heroId: null, sectionCount: 1, itemCount: 1, spellCount: 0 },
       status: 'published',
     },
@@ -45,13 +47,10 @@ function fixture() {
   return { db, author, reader, other, buildId: (build as Exclude<typeof build, 'limit-reached'>).id };
 }
 
-function mkUser(db: Db, steamId: string, persona: string): UserRow {
-  return upsertUserFromSteam(
-    db,
-    steamId,
-    { steamId, persona, avatarUrl: '', profileUrl: 'p', createdAt: null },
-    NOW,
-  );
+function mkUser(db: Db, _legacy: string, nickname: string): UserRow {
+  const created = createUser(db, { nickname, key: nicknameKey(nickname), passwordHash: 'hash' }, NOW);
+  if (created === 'taken') throw new Error(`fixture reused the nickname ${nickname}`);
+  return created;
 }
 
 const counts = (db: Db, id: number) => {

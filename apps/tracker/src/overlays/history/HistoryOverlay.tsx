@@ -4,10 +4,10 @@ import type { SessionHistory } from '@core/history.ts';
 import { pricing } from '@/features/items/prices';
 import { ChromeButton } from '@/shell/ChromeButton';
 import { OverlayShell } from '@/shell/OverlayShell';
-import { useOverlay, useScaleShortcuts } from '@/shell/useOverlay';
+import { focusHotkey, useOverlay, useScaleShortcuts } from '@/shell/useOverlay';
+import { useMessages } from '@/i18n';
 import { UI_SCALE } from '@core/ipc.ts';
 import { HistoryView } from './HistoryView';
-import { t } from '@core/i18n.ts';
 
 /**
  * The archive, in a window of its own.
@@ -22,6 +22,7 @@ import { t } from '@core/i18n.ts';
  * arranges by leaving it out of the hotkey's reach.
  */
 export function HistoryOverlay() {
+  const m = useMessages();
   const { config, interactive, setScale } = useOverlay();
   const [sessions, setSessions] = useState<SessionHistory[] | null>(null);
 
@@ -46,7 +47,7 @@ export function HistoryOverlay() {
     <OverlayShell
       title={
         <span className="font-semibold tracking-wide uppercase">
-          AOW5 <span className="text-muted-foreground">history</span>
+          {m.window.brand} <span className="text-muted-foreground">{m.window.history}</span>
         </span>
       }
       // Nothing to collapse to: this window is the list, and a one-line version
@@ -54,9 +55,9 @@ export function HistoryOverlay() {
       collapsed={false}
       fitsContent={false}
       interactive={interactive}
-      hotkey={config?.hotkey ?? 'Ctrl+Alt+T'}
+      hotkey={focusHotkey(config)}
       actions={
-        <ChromeButton label={t('Close this window')} onClick={close} className="hover:text-destructive">
+        <ChromeButton label={m.common.close} onClick={close} className="hover:text-destructive">
           <X className="size-3.5" />
         </ChromeButton>
       }

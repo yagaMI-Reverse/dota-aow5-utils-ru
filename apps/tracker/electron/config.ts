@@ -2,8 +2,11 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_CARDS, readCards } from '../core/cards.ts';
-import { readLanguage } from '../core/i18n.ts';
+import { readLanguage } from '../core/locale.ts';
+import { readPacks } from '../core/packs.ts';
+import { DEFAULT_SHORTCUTS, readShortcuts } from '../core/shortcuts.ts';
 import { DEFAULT_SOUNDS, readSoundSettings } from '../core/sounds.ts';
+import { DEFAULT_STYLE, readStyle } from '../core/style.ts';
 import {
   OPACITY,
   OVERLAY_IDS,
@@ -38,6 +41,16 @@ const defaultView = (id: OverlayId): OverlayView => ({
 export const DEFAULTS: TrackerConfig = {
   source: 'mock',
   /*
+   * Whatever Windows is set to, resolved per window rather than written down.
+   *
+   * The addon is a Chinese map with a Russian following, and the tables carry
+   * all three languages, so there is no reason a first launch should be in a
+   * language the player does not read. See `core/locale.ts` for why the stored
+   * value stays `auto` instead of being resolved once and frozen.
+   */
+  language: 'auto',
+  style: DEFAULT_STYLE,
+  /*
    * The path the site tells people to create, so following it needs no fourth
    * step: the tracker is already looking where the log was told to appear.
    *
@@ -58,7 +71,37 @@ export const DEFAULTS: TrackerConfig = {
   prices: {},
   halvePrices: true,
   trimLog: true,
-  sounds: { ...DEFAULT_SOUNDS, bindings: { ...DEFAULT_SOUNDS.bindings } },
+  // Copied a level down, every map and the list: this constant is handed out to
+  // a first launch, and a caller that edited one of its rules would be editing
+  // the default every later read is built from.
+  sounds: {
+    ...DEFAULT_SOUNDS,
+    byQuality: { ...DEFAULT_SOUNDS.byQuality },
+    byLevel: { ...DEFAULT_SOUNDS.byLevel },
+    bindings: { ...DEFAULT_SOUNDS.bindings },
+    muted: [...DEFAULT_SOUNDS.muted],
+  },
+  // Nothing fetched out of the box. Every sound a fresh install can play ships
+  // inside it, and the first thing a pack does is go to the network — which is
+  // not something to do on somebody's behalf before they have asked for it.
+  soundPacks: {},
+  /*
+   * Empty, which is off: the sound search does not exist until this names a
+   * server.
+   *
+   * The whole feature hangs off this one string. Empty, the settings window
+   * draws no search panel, no request is ever made, and the tracker is the
+   * entirely local app it was before — which is the state it should ship in
+   * until the server behind it has a catalogue key and somebody has decided
+   * this is worth turning on.
+   *
+   * To turn it on: put the deployment's origin here — `https://<host>`, the
+   * same one serving the guides. Nothing is sent to it but a search term, and
+   * nothing comes back but a list of names; the audio is fetched straight from
+   * the catalogue's own CDN and never touches that server. See
+   * `apps/api/src/sounds/` for the half that holds the key.
+   */
+  soundSearchUrl: '',
   opacity: OPACITY.default,
   // Solid by default: a readout you can see is worth more than a game you can
   // see through it, and the slider is right there for anyone who disagrees.
@@ -66,7 +109,13 @@ export const DEFAULTS: TrackerConfig = {
   uiScale: UI_SCALE.default,
   // Real time by default; `--speed=60` compresses a session for UI work.
   mockSpeed: 1,
+  // Kept only so an older profile still has the field it was written with.
+  // Nothing registers it — see `shortcuts` below and `core/shortcuts.ts`.
   hotkey: 'Control+Alt+T',
+  // Copied a level down for the same reason the sound rules are: this constant
+  // is handed to a first launch, and a caller editing one of its bindings would
+  // be editing the default every later read is built from.
+  shortcuts: { ...DEFAULT_SHORTCUTS, keys: { ...DEFAULT_SHORTCUTS.keys } },
   overlays: Object.fromEntries(OVERLAY_IDS.map((id) => [id, defaultView(id)])) as TrackerConfig['overlays'],
   recipe: [],
   recipeDone: [],
@@ -75,9 +124,6 @@ export const DEFAULTS: TrackerConfig = {
   // On: the failure it prevents — an evening measured as zero — costs more
   // than the one it can cause, which is a clock you have to stop again.
   autoResume: true,
-  // Russian, because this fork exists to be in Russian. English is one click
-  // away and costs nothing to ship — it is the source strings themselves.
-  language: 'ru',
   // On, because the fork's whole reason for the feature is a player who asked
   // for it. It stays cheap while the Exchange is closed — a thumbnail and a
   // few pixel reads a second — and the settings switch is right there.
@@ -189,11 +235,28 @@ function readTargets(raw: unknown): RecipeTarget[] {
 /** A corrupt or hand-edited config must not stop the app from starting. */
 export function loadConfig(): TrackerConfig {
   let raw: Record<string, unknown> = {};
+  /*
+   * Whether this profile has ever been written to, which only this function can
+   * know.
+   *
+   * It exists for the grade rules and nothing else. `DEFAULT_SOUNDS` puts a
+   * sound on Legendary and Mythic, and `readSoundSettings` deliberately refuses
+   * to apply that when it meets a settings block it cannot read — because an
+   * upgrade from a build that predates the rules is indistinguishable, from in
+   * there, from a new install, and only one of the two should suddenly start
+   * ringing at a whole tier. Up here the two are distinguishable: no file at
+   * all is a first launch.
+   *
+   * An unreadable file is deliberately not counted. It is a profile that exists
+   * and has settings in it, and the recovery for a broken one should not also
+   * hand somebody rules they never asked for.
+   */
+  let firstLaunch = false;
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(configPath(), 'utf8'));
     if (isRecord(parsed)) raw = parsed;
-  } catch {
-    // No file yet, or an unreadable one. Defaults it is.
+  } catch (cause) {
+    firstLaunch = (cause as NodeJS.ErrnoException).code === 'ENOENT';
   }
 
   const overlays = isRecord(raw['overlays']) ? raw['overlays'] : {};
@@ -201,19 +264,38 @@ export function loadConfig(): TrackerConfig {
     ...DEFAULTS,
     ...raw,
     source: raw['source'] === 'console' ? 'console' : 'mock',
+    // Both absent in a file written before 0.1.6, and absent is the default in
+    // each case: follow Windows, and the skin the tracker started with.
+    language: readLanguage(raw['language']),
+    style: readStyle(raw['style']),
     logFile: typeof raw['logFile'] === 'string' ? raw['logFile'] : DEFAULTS.logFile,
     tracked: Array.isArray(raw['tracked']) ? raw['tracked'].filter((t): t is string => typeof t === 'string') : [],
     prices: readPrices(raw['prices']),
     // Absent means the default here, and the default is on.
     halvePrices: raw['halvePrices'] !== false,
     trimLog: raw['trimLog'] !== false,
-    sounds: readSoundSettings(raw['sounds']),
+    sounds: firstLaunch ? DEFAULTS.sounds : readSoundSettings(raw['sounds']),
+    // The half of the sound settings that names URLs, so it is read by the
+    // strictest reader in the app — see `core/packs.ts`. A pack that does not
+    // survive it is dropped here, before anything can be fetched from it.
+    soundPacks: readPacks(raw['soundPacks']),
+    soundSearchUrl: typeof raw['soundSearchUrl'] === 'string' ? raw['soundSearchUrl'] : DEFAULTS.soundSearchUrl,
     opacity: clamp(number(raw['opacity'], DEFAULTS.opacity), OPACITY.min, OPACITY.max),
     // Absent in a pre-0.3 file, where opacity always meant the whole window —
     // and absent means the default, which is off.
     transparentBackground: raw['transparentBackground'] === true,
     uiScale: clamp(number(raw['uiScale'], DEFAULTS.uiScale), UI_SCALE.min, UI_SCALE.max),
     hotkey: typeof raw['hotkey'] === 'string' && raw['hotkey'] !== '' ? raw['hotkey'] : DEFAULTS.hotkey,
+    /*
+     * The old `hotkey` is passed in as the fallback, and only as that.
+     *
+     * It is read exactly once in a profile's life: the launch after the
+     * upgrade, when there is no `shortcuts` block yet. A player who had moved
+     * off `Control+Alt+T` did so because it clashed with something on their
+     * machine, and an upgrade that quietly moved them back onto it would break
+     * the one shortcut they had already had to fix by hand.
+     */
+    shortcuts: readShortcuts(raw['shortcuts'], raw['hotkey']),
     recipe: readTargets(raw['recipe']),
     recipeDone: readIds(raw['recipeDone']),
     recipeExpand: readIds(raw['recipeExpand']),
@@ -222,8 +304,6 @@ export function loadConfig(): TrackerConfig {
     cards: readCards(raw['cards']),
     // Absent means the default here, and the default is on.
     autoResume: raw['autoResume'] !== false,
-    // Absent, or a language this build does not ship, reads as the default.
-    language: readLanguage(raw['language']),
     market: { enabled: !(isRecord(raw['market']) && raw['market']['enabled'] === false) },
     // Playback speed is a development knob owned by the default and `--speed`,
     // never by the saved file — a stale value there would silently undo it.
