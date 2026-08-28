@@ -864,8 +864,80 @@ export function Settings({
               'Reads the Exchange window off the screen while it is open and marks each row against your prices: green is a bargain, red is an overcharge. Screen capture only — the game itself is never touched.',
             )}
             checked={config?.market.enabled ?? true}
-            onChange={(next) => void window.tracker.setConfig({ market: { enabled: next } })}
+            onChange={(next) =>
+              config && void window.tracker.setConfig({ market: { ...config.market, enabled: next } })
+            }
           />
+          <CheckboxRow
+            label={t('Ring on a golden find')}
+            hint={t('Salvage verdicts and deep-discount listings play a short sound, once per lot.')}
+            checked={config?.market.sound.enabled ?? true}
+            onChange={(next) =>
+              config &&
+              void window.tracker.setConfig({
+                market: { ...config.market, sound: { ...config.market.sound, enabled: next } },
+              })
+            }
+          />
+          {config?.market.sound.enabled && config && (
+            <>
+              <SliderRow
+                label={t('Find volume')}
+                value={config.market.sound.volume}
+                min={0}
+                max={1}
+                step={0.02}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) =>
+                  void window.tracker.setConfig({
+                    market: { ...config.market, sound: { ...config.market.sound, volume: v } },
+                  })
+                }
+              />
+              <SliderRow
+                label={t('Ring below market by')}
+                value={config.market.sound.minPct}
+                min={5}
+                max={90}
+                step={5}
+                format={(v) => `−${v}%`}
+                onChange={(v) =>
+                  void window.tracker.setConfig({
+                    market: { ...config.market, sound: { ...config.market.sound, minPct: v } },
+                  })
+                }
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="h-7 shrink-0 text-xs"
+                  onClick={() =>
+                    void window.tracker.pickSound().then((file) => {
+                      if (file !== null && config)
+                        void window.tracker.setConfig({
+                          market: { ...config.market, sound: { ...config.market.sound, ref: file } },
+                        });
+                    })
+                  }
+                >
+                  {t('Choose a find sound')}
+                </Button>
+                {config.market.sound.ref !== null && (
+                  <Button
+                    variant="outline"
+                    className="h-7 shrink-0 text-xs"
+                    onClick={() =>
+                      void window.tracker.setConfig({
+                        market: { ...config.market, sound: { ...config.market.sound, ref: null } },
+                      })
+                    }
+                  >
+                    {t('Back to the built-in')}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </section>
 
         <section className="space-y-1.5">

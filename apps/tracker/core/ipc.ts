@@ -377,6 +377,20 @@ export interface TrackerConfig {
    */
   market: {
     enabled: boolean;
+    /**
+     * A ring on the finds worth dropping everything for.
+     *
+     * `ref` follows the sound system's grammar — `builtin:` or an imported
+     * file — and null means the built-in jackpot. `minPct` is how far under
+     * the market a listing must sit before it deserves a noise; salvage
+     * verdicts always qualify, since they are profit by construction.
+     */
+    sound: {
+      enabled: boolean;
+      ref: string | null;
+      volume: number;
+      minPct: number;
+    };
   };
 }
 

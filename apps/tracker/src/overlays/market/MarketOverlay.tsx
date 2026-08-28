@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MarketFrame, MarketTextLine } from '@core/ipc.ts';
 import { tf } from '@core/i18n.ts';
+import indexJson from 'aow5-shared/public/data/items.index.json';
 import ruNames from 'aow5-shared/public/data/locale.ru.names.json';
 import enNames from 'aow5-shared/public/data/locale.en.names.json';
 import {
   ESSENCE_TABLE_COST,
   GUILD_CONTRACT_ID,
   MYTHIC_ESSENCE_ID,
-  QUALITY_LEGENDARY,
   salvageFloor,
   salvageYield,
 } from '@core/salvage.ts';
@@ -16,6 +16,8 @@ import { useItems } from '@/features/items/table';
 import { pricing } from '@/features/items/prices';
 import { compact } from '@/lib/format';
 import { useOverlay } from '@/shell/useOverlay';
+import { createSoundPlayer, type SoundPlayer } from '@/features/sounds/player';
+import { BUILTIN_JACKPOT, DEFAULT_SOUNDS } from '@core/sounds.ts';
 
 /**
  * The Exchange lens: a full-screen, permanently click-through sheet that
@@ -91,6 +93,46 @@ function similarity(a: Set<string>, b: Set<string>): number {
   return (2 * shared) / (a.size + b.size);
 }
 
+/**
+ * Quality, type and cost per id, straight off the shipped index rows.
+ *
+ * The lens filters by these before a name ever enters the fuzzy index: commons
+ * through rares are shelf noise the player never trades, and matching against
+ * them costs both time and accuracy — a trash name one glyph from a traded one
+ * is a wrong verdict waiting to happen.
+ */
+interface ItemMeta {
+  type: string;
+  quality: number;
+  cost: number;
+}
+
+const ITEM_META: Map<string, ItemMeta> = (() => {
+  const out = new Map<string, ItemMeta>();
+  for (const row of (indexJson as { rows: [number, string, string, number, number, number, ...unknown[]][] }).rows) {
+    out.set(row[1], { type: row[2], quality: row[3], cost: row[5] });
+  }
+  return out;
+})();
+
+/**
+ * Whether an id belongs in the name index and the badge focus at all.
+ *
+ * Epic and better always; `special` at any quality, because the donor goods —
+ * trade-slot scrolls, expansion chests — carry a table cost of zero exactly
+ * where the market charges hundreds of thousands; and anything with a real
+ * table cost, which is what lets the priced consumables and packs through
+ * while the piles of rare-and-below shelf filler stay out.
+ */
+function tradeworthy(id: string): boolean {
+  const meta = ITEM_META.get(id);
+  if (!meta) return false;
+  if (meta.quality >= 4) return true;
+  if (meta.type === 'special') return true;
+  if (id.startsWith('item_pet_')) return true;
+  return meta.cost >= 2000;
+}
+
 interface NameEntry {
   id: string;
   folded: string;
@@ -102,6 +144,8 @@ interface NameIndex {
   entries: NameEntry[];
   /** How many entries share a family — the signal that ranks must agree. */
   familySize: Map<string, number>;
+  /** Folded names shared by different items; unpriceable from text alone. */
+  ambiguous: Set<string>;
 }
 
 /**
@@ -115,18 +159,32 @@ interface NameIndex {
 function buildIndex(): NameIndex {
   const entries: NameEntry[] = [];
   const familySize = new Map<string, number>();
+  const foldedCount = new Map<string, Set<string>>();
   for (const source of [ruNames, enNames] as { names?: Record<string, string> }[]) {
     const names = source.names ?? {};
     for (const [id, name] of Object.entries(names)) {
       if (typeof name !== 'string' || name.length < 3) continue;
+      if (!tradeworthy(id)) continue;
       const folded = fold(name);
       if (folded.length < 3) continue;
       const ranked = parseRank(folded);
       entries.push({ id, folded, grams: bigrams(folded), ranked });
       familySize.set(ranked.family, (familySize.get(ranked.family) ?? 0) + 1);
+      const ids = foldedCount.get(folded) ?? new Set<string>();
+      ids.add(id);
+      foldedCount.set(folded, ids);
     }
   }
-  return { entries, familySize };
+  /*
+   * Names that fold to the same string across *different* items — the star
+   * twins, where "★Молот разрушения" is an epic and "Молот разрушения" a
+   * mythic at twice the price, and OCR drops the star. A read that cannot
+   * tell which one is on screen must not price either, so ambiguous folds are
+   * marked and the resolver refuses them outright.
+   */
+  const ambiguous = new Set<string>();
+  for (const [folded, ids] of foldedCount) if (ids.size > 1) ambiguous.add(folded);
+  return { entries, familySize, ambiguous };
 }
 
 /**
@@ -144,6 +202,7 @@ function resolveName(index: NameIndex, raw: string): string | null {
   let best: NameEntry | null = null;
   let bestScore = 0;
   let second = 0;
+  if (index.ambiguous.has(folded)) return null;
   const grams = bigrams(folded);
   for (const entry of index.entries) {
     if (entry.folded === folded) return entry.id;
@@ -158,6 +217,7 @@ function resolveName(index: NameIndex, raw: string): string | null {
   }
   if (best === null || bestScore < 0.72) return null;
   if (bestScore - second < 0.06 && second > 0) return null;
+  if (index.ambiguous.has(best.folded)) return null;
   /*
    * The rank gate. Ranked families — "… II" vs "… III", "(2 ур.)" vs
    * "(3 ур.)" — are exactly where the priciest gear lives and exactly where
@@ -358,19 +418,18 @@ function readFrame(frame: MarketFrame, index: NameIndex, unit: (id: string) => n
      * get a verdict drawn over it.
      */
     const pet = id.startsWith('item_pet_');
+    /*
+     * The index already refuses everything below the trade line, so focus is
+     * simpler than it was: epic and better of any type, the donor `special`
+     * goods, pets — and the self-widening rule, where anything the ledger has
+     * learned trades above the floor earns verdicts on its own.
+     */
     const focus =
-      info.quality >= QUALITY_LEGENDARY ||
+      info.quality >= 4 ||
+      info.type === 'special' ||
       ESSENCE_TABLE_COST[id] !== undefined ||
       id === GUILD_CONTRACT_ID ||
-      id === 'item_M318' || // Таинственный ключ: epic-tier material, prime trade good
       pet ||
-      /^item_P31\d/.test(id) ||
-      (info.type === 'gem' && info.quality >= 4) ||
-      // The self-widening rule: anything the ledger has learned trades above
-      // this floor earns verdicts on its own, whatever tier the table filed
-      // it under. The ledger records every resolved listing regardless of
-      // focus, so three sightings of any genuinely traded good promote it —
-      // no hand-kept list of "things players happen to sell dear".
       (marketPrice(id) ?? 0) >= FOCUS_MARKET_FLOOR;
     if (!focus) continue;
 
@@ -499,6 +558,26 @@ export function MarketOverlay() {
 
   useEffect(() => window.tracker.onMarket(setFrame), []);
 
+  /*
+   * The ring on a find. One player, reconfigured as the settings change, and
+   * one memory of what already rang: a lot is announced once per appearance,
+   * not once per frame — the lens rereads the same screen four times a second
+   * and a bell on every read would be a fire alarm.
+   */
+  const playerRef = useRef<SoundPlayer | null>(null);
+  const rangRef = useRef<Set<string>>(new Set());
+  const soundCfg = config?.market.sound;
+  useEffect(() => {
+    const settings = {
+      ...DEFAULT_SOUNDS,
+      enabled: true,
+      volume: soundCfg?.volume ?? 0.12,
+      limitSeconds: 4,
+    };
+    if (playerRef.current === null) playerRef.current = createSoundPlayer(settings);
+    else playerRef.current.update(settings);
+  }, [soundCfg?.volume]);
+
   const priced = useMemo(
     () => pricing(config?.prices, config?.halvePrices ?? true),
     [config],
@@ -510,6 +589,22 @@ export function MarketOverlay() {
     saveLedger();
     return out;
   }, [frame, index, priced, itemTable]);
+
+  useEffect(() => {
+    const cfg = soundCfg;
+    if (!cfg?.enabled || playerRef.current === null) return;
+    for (const badge of badges) {
+      const golden =
+        badge.verdict === 'salvage' || (badge.verdict === 'buy' && -badge.deltaPct >= cfg.minPct);
+      if (!golden) continue;
+      if (rangRef.current.has(badge.key)) continue;
+      rangRef.current.add(badge.key);
+      playerRef.current.play(cfg.ref ?? BUILTIN_JACKPOT);
+      break; // one ring per frame, however many finds it holds
+    }
+    // The memory would otherwise grow all evening; a thousand keys is plenty.
+    if (rangRef.current.size > 1000) rangRef.current.clear();
+  }, [badges, soundCfg]);
 
   // The badge column sits just left of the listing card, over the game's own
   // backdrop — measured against the same 2560-wide frame the watcher uses.

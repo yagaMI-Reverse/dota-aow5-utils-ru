@@ -306,6 +306,15 @@ export const ru: Record<string, string> = {
 
   'Setup': 'Настройка',
 
+  // Звук находки
+  'Ring on a golden find': 'Звук при супернаходке',
+  'Salvage verdicts and deep-discount listings play a short sound, once per lot.':
+    'Разборные вердикты и лоты с глубокой скидкой играют короткий звук — один раз на лот.',
+  'Find volume': 'Громкость находки',
+  'Ring below market by': 'Звенеть при скидке от',
+  'Choose a find sound': 'Выбрать звук находки',
+  'Back to the built-in': 'Вернуть встроенный',
+
   // Линза биржи
   'Exchange lens': 'Линза биржи',
   'Badge Exchange listings with a verdict': 'Помечать лоты биржи вердиктом',
@@ -323,6 +332,8 @@ export const ru: Record<string, string> = {
 
   // Журнал рынка
   'Market prices the lens has learned': 'Рынок: выученные цены',
+  'Search all items…': 'Поиск по всем предметам…',
+  'your price': 'своя цена',
   'item': 'предмет',
   'median': 'медиана',
   'seen': 'н.',

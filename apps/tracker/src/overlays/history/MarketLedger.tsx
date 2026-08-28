@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { useOverlay } from '@/shell/useOverlay';
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
-import { getLanguage, t } from '@core/i18n.ts';
+import { t } from '@core/i18n.ts';
 import { LEGENDARY_ESSENCE_ID, MYTHIC_ESSENCE_ID } from '@core/salvage.ts';
-import ruNames from 'aow5-shared/public/data/locale.ru.names.json';
 import { useItems } from '@/features/items/table';
 import { compact } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -27,52 +28,93 @@ const LEDGER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 interface Row {
   id: string;
   name: string;
-  median: number;
+  median: number | null;
   n: number;
-  lo: number;
-  hi: number;
+  lo: number | null;
+  hi: number | null;
   essence: boolean;
 }
 
-function readRows(itemTable: ReturnType<typeof useItems>): Row[] {
-  let raw: Record<string, { g: number; t: number }[]>;
+/** The ledger's numbers for one id, or blanks for an item it has not met. */
+function ledgerStats(raw: Record<string, { g: number; t: number }[]>, id: string) {
+  const now = Date.now();
+  const golds = (raw[id] ?? [])
+    .filter((o) => now - o.t < LEDGER_TTL_MS)
+    .map((o) => o.g)
+    .sort((a, b) => a - b);
+  if (golds.length === 0) return { median: null, n: 0, lo: null, hi: null };
+  const mid = Math.floor(golds.length / 2);
+  return {
+    median: golds.length % 2 === 1 ? golds[mid]! : Math.round((golds[mid - 1]! + golds[mid]!) / 2),
+    n: golds.length,
+    lo: golds[0]!,
+    hi: golds[golds.length - 1]!,
+  };
+}
+
+function loadLedgerRaw(): Record<string, { g: number; t: number }[]> {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(LEDGER_KEY) ?? '{}');
-    raw = typeof parsed === 'object' && parsed !== null ? (parsed as typeof raw) : {};
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, { g: number; t: number }[]>)
+      : {};
   } catch {
-    return [];
+    return {};
+  }
+}
+
+function readRows(itemTable: ReturnType<typeof useItems>, query: string): Row[] {
+  const raw = loadLedgerRaw();
+
+  // A query switches the list from "what the lens has learned" to "the whole
+  // catalog": every matching item, learned or not, ready to be priced by hand.
+  const q = query.trim();
+  if (q !== '') {
+    return itemTable.search(q, 30).map((item) => {
+      const s = ledgerStats(raw, item.id);
+      return {
+        id: item.id,
+        name: item.name,
+        median: s.median,
+        n: s.n,
+        lo: s.lo,
+        hi: s.hi,
+        essence: item.id === LEGENDARY_ESSENCE_ID || item.id === MYTHIC_ESSENCE_ID,
+      };
+    });
   }
 
-  const russian = getLanguage() === 'ru';
-  const localized = (ruNames as { names?: Record<string, string> }).names ?? {};
-  const now = Date.now();
   const rows: Row[] = [];
-  for (const [id, obs] of Object.entries(raw)) {
-    const golds = obs
-      .filter((o) => now - o.t < LEDGER_TTL_MS)
-      .map((o) => o.g)
-      .sort((a, b) => a - b);
-    if (golds.length === 0) continue;
-    const mid = Math.floor(golds.length / 2);
+  for (const id of Object.keys(raw)) {
+    const s = ledgerStats(raw, id);
+    if (s.n === 0) continue;
     rows.push({
       id,
-      name: (russian ? localized[id] : undefined) ?? itemTable.get(id).name,
-      median: golds.length % 2 === 1 ? golds[mid]! : Math.round((golds[mid - 1]! + golds[mid]!) / 2),
-      n: golds.length,
-      lo: golds[0]!,
-      hi: golds[golds.length - 1]!,
+      name: itemTable.get(id).name,
+      ...s,
       essence: id === LEGENDARY_ESSENCE_ID || id === MYTHIC_ESSENCE_ID,
     });
   }
   // Essences first — they anchor every salvage verdict — then by price.
-  return rows.sort((a, b) => Number(b.essence) - Number(a.essence) || b.median - a.median);
+  return rows.sort((a, b) => Number(b.essence) - Number(a.essence) || (b.median ?? 0) - (a.median ?? 0));
 }
 
 export function MarketLedger() {
   const itemTable = useItems();
+  const { config } = useOverlay();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const [generation, setGeneration] = useState(0);
-  const rows = useMemo(() => readRows(itemTable), [generation, open, itemTable]);
+  const rows = useMemo(() => readRows(itemTable, query), [generation, open, itemTable, query]);
+
+  const prices = config?.prices ?? {};
+  const setPrice = (id: string, text: string) => {
+    const next = { ...prices };
+    const value = Number(text.replace(/[^0-9]/g, ''));
+    if (!Number.isFinite(value) || value <= 0) delete next[id];
+    else next[id] = value;
+    void window.tracker.setConfig({ prices: next });
+  };
 
   if (!open && rows.length === 0) return null;
 
@@ -106,11 +148,20 @@ export function MarketLedger() {
 
       {open && (
         <div className="space-y-0.5 px-2 pb-2">
+          {/* Empty shows what the lens learned; typing searches the whole
+              catalog, so any item can be priced before it is ever seen. */}
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('Search all items…')}
+            className="h-6 text-[0.625rem]"
+          />
           <div className="flex items-center gap-1.5 text-[0.5625rem] tracking-wide text-muted-foreground uppercase">
             <span className="min-w-0 flex-1">{t('item')}</span>
             <span className="w-14 shrink-0 text-right">{t('median')}</span>
             <span className="w-7 shrink-0 text-right">{t('seen')}</span>
             <span className="w-20 shrink-0 text-right">{t('range')}</span>
+            <span className="w-16 shrink-0 text-right">{t('your price')}</span>
           </div>
 
           {rows.map((row) => (
@@ -122,7 +173,7 @@ export function MarketLedger() {
                 {row.name}
               </span>
               <span className="w-14 shrink-0 text-right font-semibold tabular-nums text-gold">
-                {compact(row.median)}
+                {row.median !== null ? compact(row.median) : '—'}
               </span>
               {/* One sighting is an asking price, not a market; it reads dim
                   until the median has something to stand on. */}
@@ -135,8 +186,21 @@ export function MarketLedger() {
                 {row.n}
               </span>
               <span className="w-20 shrink-0 text-right tabular-nums text-muted-foreground">
-                {compact(row.lo)}–{compact(row.hi)}
+                {row.lo !== null && row.hi !== null ? `${compact(row.lo)}–${compact(row.hi)}` : '—'}
               </span>
+              {/* The override feeds pricing.unit, so a number typed here moves
+                  every verdict, card and salvage floor in the same broadcast. */}
+              <Input
+                key={`${row.id}:${prices[row.id] ?? ''}`}
+                defaultValue={prices[row.id] !== undefined ? String(prices[row.id]) : ''}
+                placeholder={row.median !== null ? compact(row.median) : '—'}
+                onBlur={(e) => setPrice(row.id, e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                className={cn(
+                  'h-5 w-16 shrink-0 px-1 text-right text-[0.625rem] tabular-nums',
+                  prices[row.id] !== undefined && 'text-primary',
+                )}
+              />
             </div>
           ))}
 

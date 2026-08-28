@@ -57,6 +57,9 @@ export class MarketWatcher {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private busy = false;
+  /** A cheap signature of the last crop OCR'd, to skip identical frames. */
+  private lastSig = 0;
+  private lastLines: MarketFrame['lines'] = [];
   /**
    * Two capture files used alternately. One file raced: the next tick's write
    * began while the OCR process still held the previous read open, and every
@@ -209,6 +212,20 @@ export class MarketWatcher {
       // one line of eight without this and all of them with it.
       const size = scaled.getSize();
       const bitmap = Buffer.from(scaled.toBitmap());
+      /*
+       * A page that has not changed does not need recognising again: the OCR
+       * call is ~600ms of CPU, and while the player reads a page the lens was
+       * spending it on the same pixels four times a second. The signature is a
+       * strided sum — cheap, and any real change (a scroll, a refresh, one
+       * price ticking over) moves it.
+       */
+      let sig = 0;
+      for (let i = 0; i < bitmap.length; i += 1024) sig = (sig * 31 + (bitmap[i] as number)) | 0;
+      if (sig === this.lastSig && this.lastLines.length > 0) {
+        this.send({ t: Date.now(), screenW: sw, screenH: sh, open: true, lines: this.lastLines });
+        nextDelay = ACTIVE_MS;
+        return;
+      }
       for (let i = 0; i < bitmap.length; i++) {
         if (i % 4 !== 3) bitmap[i] = 255 - (bitmap[i] as number);
       }
@@ -220,19 +237,16 @@ export class MarketWatcher {
       const lines = await this.ocr.recognize(tmpPng);
       if (lines !== null) {
         const factor = size.width / region.width;
-        this.send({
-          t: Date.now(),
-          screenW: sw,
-          screenH: sh,
-          open: true,
-          lines: lines.map((l) => ({
-            x: Math.round(l.x / factor) + region.x,
-            y: Math.round(l.y / factor) + region.y,
-            w: Math.round(l.w / factor),
-            h: Math.round(l.h / factor),
-            text: l.text,
-          })),
-        });
+        const mapped = lines.map((l) => ({
+          x: Math.round(l.x / factor) + region.x,
+          y: Math.round(l.y / factor) + region.y,
+          w: Math.round(l.w / factor),
+          h: Math.round(l.h / factor),
+          text: l.text,
+        }));
+        this.lastSig = sig;
+        this.lastLines = mapped;
+        this.send({ t: Date.now(), screenW: sw, screenH: sh, open: true, lines: mapped });
       }
       nextDelay = ACTIVE_MS;
     } catch (error) {

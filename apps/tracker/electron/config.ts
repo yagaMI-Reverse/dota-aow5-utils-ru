@@ -127,7 +127,7 @@ export const DEFAULTS: TrackerConfig = {
   // On, because the fork's whole reason for the feature is a player who asked
   // for it. It stays cheap while the Exchange is closed — a thumbnail and a
   // few pixel reads a second — and the settings switch is right there.
-  market: { enabled: true },
+  market: { enabled: true, sound: { enabled: true, ref: null, volume: 0.12, minPct: 30 } },
 };
 
 export const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
@@ -161,6 +161,23 @@ const configPath = () => path.join(app.getPath('userData'), 'config.json');
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const number = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+
+
+/** The lens block, whole: absent halves read as the defaults they replace. */
+function readMarket(raw: unknown): TrackerConfig['market'] {
+  const base = DEFAULTS.market;
+  if (!isRecord(raw)) return { ...base, sound: { ...base.sound } };
+  const s = isRecord(raw['sound']) ? raw['sound'] : {};
+  return {
+    enabled: raw['enabled'] !== false,
+    sound: {
+      enabled: s['enabled'] !== false,
+      ref: typeof s['ref'] === 'string' && s['ref'] !== '' ? s['ref'] : null,
+      volume: clamp(number(s['volume'], base.sound.volume), 0, 1),
+      minPct: clamp(number(s['minPct'], base.sound.minPct), 0, 95),
+    },
+  };
+}
 
 /**
  * Reads one overlay's geometry out of whatever the file happens to hold.
@@ -304,7 +321,7 @@ export function loadConfig(): TrackerConfig {
     cards: readCards(raw['cards']),
     // Absent means the default here, and the default is on.
     autoResume: raw['autoResume'] !== false,
-    market: { enabled: !(isRecord(raw['market']) && raw['market']['enabled'] === false) },
+    market: readMarket(raw['market']),
     // Playback speed is a development knob owned by the default and `--speed`,
     // never by the saved file — a stale value there would silently undo it.
     mockSpeed: DEFAULTS.mockSpeed,
