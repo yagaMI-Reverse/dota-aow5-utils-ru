@@ -51,15 +51,24 @@ const OCR_SCALE = 1.5;
 const ACTIVE_MS = 250;
 const IDLE_MS = 1200;
 
-/**
- * The cat watch: how often the minimap corner is counted, and the calm-down
- * after a ring. Event cats live for minutes; thirty seconds between rings is
- * a reminder, not an alarm clock.
- */
+/** The cat watch: how often the minimap corner is counted. */
 const CAT_MS = 2500;
+/** Floor between rings, guarding against a marker blinking across the line. */
 const CAT_RING_COOLDOWN_MS = 30_000;
-/** How long after entering a room its baseline is still being learned. */
-const CAT_LEARN_MS = 8_000;
+/** Frames above baseline before the meow — a cat stays up, capture junk does not. */
+const CAT_STREAK = 3;
+/** Frames back at baseline before the next rise counts as a new cat. */
+const CAT_CALM = 2;
+/** Non-zero counts that vote a new room's baseline in. */
+const CAT_LEARN_SAMPLES = 4;
+/** Frames stably below baseline before the smaller count is believed. */
+const CAT_BELOW_STABLE = 8;
+/**
+ * Grace after entering a known room. The log announces `room_enter` while the
+ * screen is still a loading fade with no minimap on it, and counting those
+ * frames is how this feature once meowed twice at a perfectly normal map.
+ */
+const CAT_SETTLE_MS = 8_000;
 
 export class MarketWatcher {
   private readonly ocr = new OcrService();
@@ -87,6 +96,11 @@ export class MarketWatcher {
   private roomEnteredAt = 0;
   private catBaselines = new Map<string, number>();
   private catStreak = 0;
+  private catCalm = 0;
+  /** True after a ring, until the count has come back down to baseline. */
+  private catEpisode = false;
+  private catSamples: number[] = [];
+  private catBelow: number[] = [];
   private catLastRing = 0;
   private catNextAt = 0;
   private baselinesLoaded = false;
@@ -127,6 +141,10 @@ export class MarketWatcher {
     this.currentRoom = room;
     this.roomEnteredAt = Date.now();
     this.catStreak = 0;
+    this.catCalm = 0;
+    this.catEpisode = false;
+    this.catSamples = [];
+    this.catBelow = [];
   }
 
   /** Starts the loop and puts the lens window up. Idempotent. */
@@ -350,10 +368,15 @@ export class MarketWatcher {
    * Counts the green event markers on the minimap and rings on an extra one.
    *
    * There is no table of how many triangles each map draws — so, like the
-   * price ledger, the watcher learns it: the first seconds in a room teach
-   * that room its baseline (the minimum seen, so a cat already loose cannot
-   * inflate it), and afterwards two consecutive counts above baseline mean
-   * the event spawn is up.
+   * price ledger, the watcher learns it. A new room's baseline is the upper
+   * median of its first few non-zero counts: biased high on purpose, because
+   * a baseline learned too high misses one cat, while one learned too low
+   * meows at nothing all evening. A frame with no green at all is a frame
+   * with no minimap on it — a loading screen, an alt-tab — and is ignored
+   * rather than counted, which is the lesson of the double-meow bug.
+   *
+   * One ring per spawn: after a sustained rise the episode latches, and only
+   * a return to baseline arms the next meow.
    */
   private async watchCat(sw: number, sh: number): Promise<void> {
     if (!this.catEnabled || this.currentRoom === null) return;
@@ -411,22 +434,38 @@ export class MarketWatcher {
       if (area >= MIN_BLOB) clusters++;
     }
 
-    const room = this.currentRoom;
-    const learned = this.catBaselines.get(room);
-    const learning = now - this.roomEnteredAt < CAT_LEARN_MS;
-    if (learning || learned === undefined) {
-      // The minimum observed is the baseline: a cat on screen during the
-      // learning window can only raise counts, never lower them.
-      if (clusters > 0 || learned !== undefined) {
-        this.catBaselines.set(room, learned === undefined ? clusters : Math.min(learned, clusters));
-        this.saveBaselines();
-      }
+    // No green anywhere means no minimap in the corner, not a room with zero
+    // markers. Believing such a frame once stomped a baseline to zero and had
+    // the tracker meowing at a perfectly normal map.
+    if (clusters === 0) {
+      this.catStreak = 0;
       return;
     }
 
+    const room = this.currentRoom;
+    const learned = this.catBaselines.get(room);
+
+    if (learned === undefined) {
+      // A new room: the first few real counts vote, the upper median wins.
+      this.catSamples.push(clusters);
+      if (this.catSamples.length < CAT_LEARN_SAMPLES) return;
+      const sorted = [...this.catSamples].sort((a, b) => a - b);
+      this.catBaselines.set(room, sorted[Math.floor(sorted.length / 2)] as number);
+      this.catSamples = [];
+      this.saveBaselines();
+      return;
+    }
+
+    // A known room relearns nothing on entry — the first seconds are fade-ins
+    // and camera pans, and the baseline already knows better than they do.
+    if (now - this.roomEnteredAt < CAT_SETTLE_MS) return;
+
     if (clusters > learned) {
+      this.catCalm = 0;
+      this.catBelow = [];
       this.catStreak++;
-      if (this.catStreak >= 2 && now - this.catLastRing > CAT_RING_COOLDOWN_MS) {
+      if (this.catStreak >= CAT_STREAK && !this.catEpisode && now - this.catLastRing > CAT_RING_COOLDOWN_MS) {
+        this.catEpisode = true;
         this.catLastRing = now;
         const win = this.window;
         if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
@@ -437,14 +476,27 @@ export class MarketWatcher {
           }
         }
       }
-    } else {
-      this.catStreak = 0;
-      // Self-correcting downwards: if the map genuinely has fewer markers
-      // than remembered, adopt the smaller truth.
-      if (clusters < learned && clusters > 0) {
-        this.catBaselines.set(room, clusters);
+      return;
+    }
+
+    this.catStreak = 0;
+    this.catCalm++;
+    // Back at baseline long enough: the cat is gone, the next rise is a new one.
+    if (this.catEpisode && this.catCalm >= CAT_CALM) this.catEpisode = false;
+
+    if (clusters < learned) {
+      // Below the remembered count. Transient — two markers standing so close
+      // they merge into one blob, an icon drawn over a triangle — is common,
+      // so the smaller number is only believed after it holds for a stretch,
+      // and then the largest count of that stretch is what is adopted.
+      this.catBelow.push(clusters);
+      if (this.catBelow.length >= CAT_BELOW_STABLE) {
+        this.catBaselines.set(room, Math.max(...this.catBelow));
+        this.catBelow = [];
         this.saveBaselines();
       }
+    } else {
+      this.catBelow = [];
     }
   }
 

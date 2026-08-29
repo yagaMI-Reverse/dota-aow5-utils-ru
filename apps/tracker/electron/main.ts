@@ -248,7 +248,10 @@ const deliver = (channel: string, payload: unknown) => {
     // watcher has to know which room the player is in — and the log feed is the
     // only honest source of that.
     const ev = payload as TrackerEvent;
-    if (ev.e === 'room_enter') market.setRoom(ev.room);
+    // Keyed by room *and* difficulty: the same map on another tier is free to
+    // draw a different number of markers, and a shared baseline would split
+    // the difference into false meows.
+    if (ev.e === 'room_enter') market.setRoom(ev.level === undefined ? ev.room : `${ev.room}#${ev.level}`);
     else if (ev.e === 'room_exit') market.setRoom(null);
   }
   if (channel === 'tracker:skipped') {
