@@ -51,8 +51,12 @@ const OCR_SCALE = 1.5;
 const ACTIVE_MS = 250;
 const IDLE_MS = 1200;
 
-/** The cat watch: how often the minimap corner is counted. */
-const CAT_MS = 2500;
+/**
+ * The cat watch: how often the minimap corner is counted. A cat lives for
+ * minutes, so this can afford to be slow — and it has to be, because every
+ * count is a screen capture and captures are what the mouse feels.
+ */
+const CAT_MS = 4000;
 /** Floor between rings, guarding against a marker blinking across the line. */
 const CAT_RING_COOLDOWN_MS = 30_000;
 /** Frames above baseline before the meow — a cat stays up, capture junk does not. */
@@ -64,9 +68,10 @@ const CAT_LEARN_SAMPLES = 4;
 /** Frames stably below baseline before the smaller count is believed. */
 const CAT_BELOW_STABLE = 8;
 /**
- * Grace after entering a known room. The log announces `room_enter` while the
- * screen is still a loading fade with no minimap on it, and counting those
- * frames is how this feature once meowed twice at a perfectly normal map.
+ * Grace after entering a room, during which nothing is even captured. The log
+ * announces `room_enter` while the screen is still a loading fade with no
+ * minimap on it, and counting those frames is how this feature once meowed
+ * twice at a perfectly normal map.
  */
 const CAT_SETTLE_MS = 8_000;
 
@@ -382,19 +387,32 @@ export class MarketWatcher {
     if (!this.catEnabled || this.currentRoom === null) return;
     const now = Date.now();
     if (now < this.catNextAt) return;
+    // Settling means no capture at all, not a capture whose verdict is thrown
+    // away — the screen would be a loading fade anyway.
+    if (now - this.roomEnteredAt < CAT_SETTLE_MS) return;
     this.catNextAt = now + CAT_MS;
     this.loadBaselines();
 
+    /*
+     * Half resolution, and that is deliberate: a full-size grab is ~15MB
+     * copied out of the compositor, and doing that every couple of seconds
+     * during play was felt as a periodic mouse hitch. A minimap marker is
+     * dozens of pixels across even at half scale, so nothing is lost — the
+     * OCR path still pays for full frames, but only while the Exchange is
+     * open and the game is not being played.
+     */
     const fulls = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: { width: sw, height: sh },
+      thumbnailSize: { width: Math.round(sw / 2), height: Math.round(sh / 2) },
     });
     const frame = fulls[0]?.thumbnail;
     if (!frame || frame.isEmpty()) return;
 
-    // The minimap corner: bottom-left, scaled off the 1440p reference.
-    const box = Math.round((420 * sh) / 1440);
-    const crop = frame.crop({ x: 0, y: sh - box, width: box, height: box });
+    // The minimap corner: bottom-left, scaled off the 1440p reference — via
+    // the capture's own size, because the capturer rounds as it pleases.
+    const full = frame.getSize();
+    const box = Math.round((420 * full.height) / 1440);
+    const crop = frame.crop({ x: 0, y: full.height - box, width: box, height: box });
     const size = crop.getSize();
     const bmp = crop.toBitmap(); // BGRA
 
@@ -411,7 +429,9 @@ export class MarketWatcher {
     }
 
     // Connected components, 4-way; a marker is a blob, stray pixels are not.
-    const MIN_BLOB = Math.max(8, Math.round((sh / 1440) * 12));
+    // Sized off the capture, which is half the screen: a marker that fills
+    // dozens of pixels there still dwarfs this floor, single-pixel noise not.
+    const MIN_BLOB = Math.max(4, Math.round((full.height / 1440) * 12));
     let clusters = 0;
     const stack: number[] = [];
     for (let start = 0; start < mask.length; start++) {
@@ -455,10 +475,6 @@ export class MarketWatcher {
       this.saveBaselines();
       return;
     }
-
-    // A known room relearns nothing on entry — the first seconds are fade-ins
-    // and camera pans, and the baseline already knows better than they do.
-    if (now - this.roomEnteredAt < CAT_SETTLE_MS) return;
 
     if (clusters > learned) {
       this.catCalm = 0;
