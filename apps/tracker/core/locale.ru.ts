@@ -315,6 +315,16 @@ export const ru: Record<string, string> = {
   'Choose a find sound': 'Выбрать звук находки',
   'Back to the built-in': 'Вернуть встроенный',
 
+  // Кот-эвент
+  'Event cat': 'Кот-эвент',
+  'Meow when the event cat appears': 'Мяукать, когда появляется кот-эвент',
+  'Watches the minimap for one green marker more than the room normally shows. The first visits to each room teach it the normal count, so trust the ring from the second run on. Works while the Exchange lens is on.':
+    'Следит за миникартой: на один зелёный маркер больше обычного — значит, заспавнился кот. Первые заходы в комнату линза запоминает норму, так что верить сигналу стоит со второго захода. Работает, пока включена линза биржи.',
+  'Meow volume': 'Громкость мяуканья',
+  'Choose a meow': 'Выбрать мяуканье',
+  'No meow': 'Убрать звук',
+  'Silent until a sound file is chosen.': 'Молчит, пока не выбран файл со звуком.',
+
   // Линза биржи
   'Exchange lens': 'Линза биржи',
   'Badge Exchange listings with a verdict': 'Помечать лоты биржи вердиктом',

@@ -614,6 +614,36 @@ export function MarketOverlay() {
     if (rangRef.current.size > 1000) rangRef.current.clear();
   }, [badges, soundCfg]);
 
+  /*
+   * The meow. Its own player rather than the find bell's, because the two ring
+   * from different worlds: a cat can show up the same second a golden lot
+   * does, and one shared player would have whichever update() ran last drag
+   * the other's ring to the wrong volume.
+   */
+  const catPlayerRef = useRef<SoundPlayer | null>(null);
+  const catCfg = config?.market.cat;
+  useEffect(() => {
+    const settings = {
+      ...DEFAULT_SOUNDS,
+      enabled: true,
+      volume: catCfg?.volume ?? 0.2,
+      limitSeconds: 4,
+    };
+    if (catPlayerRef.current === null) catPlayerRef.current = createSoundPlayer(settings);
+    else catPlayerRef.current.update(settings);
+  }, [catCfg?.volume]);
+
+  useEffect(
+    () =>
+      window.tracker.onCat(() => {
+        // No built-in meow ships, so until the player picks a file the cat
+        // stays a silent feature — the watcher still learns its baselines.
+        if (!catCfg?.enabled || catCfg.ref === null || catPlayerRef.current === null) return;
+        catPlayerRef.current.play(catCfg.ref);
+      }),
+    [catCfg],
+  );
+
   // The badge column sits just left of the listing card, over the game's own
   // backdrop — measured against the same 2560-wide frame the watcher uses.
   const badgeRight = frame === null ? 0 : Math.round((512 / 2560) * frame.screenW);

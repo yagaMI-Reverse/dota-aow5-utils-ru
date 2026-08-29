@@ -941,6 +941,76 @@ export function Settings({
         </section>
 
         <section className="space-y-1.5">
+          <Label>{t('Event cat')}</Label>
+          <CheckboxRow
+            label={t('Meow when the event cat appears')}
+            hint={t(
+              'Watches the minimap for one green marker more than the room normally shows. The first visits to each room teach it the normal count, so trust the ring from the second run on. Works while the Exchange lens is on.',
+            )}
+            checked={config?.market.cat.enabled ?? true}
+            onChange={(next) =>
+              config &&
+              void window.tracker.setConfig({
+                market: { ...config.market, cat: { ...config.market.cat, enabled: next } },
+              })
+            }
+          />
+          {config?.market.cat.enabled && config && (
+            <>
+              <SliderRow
+                label={t('Meow volume')}
+                value={config.market.cat.volume}
+                min={0}
+                max={1}
+                step={0.02}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) =>
+                  void window.tracker.setConfig({
+                    market: { ...config.market, cat: { ...config.market.cat, volume: v } },
+                  })
+                }
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="h-7 shrink-0 text-xs"
+                  onClick={() =>
+                    void window.tracker.pickSound().then((file) => {
+                      if (file !== null && config)
+                        void window.tracker.setConfig({
+                          market: { ...config.market, cat: { ...config.market.cat, ref: file } },
+                        });
+                    })
+                  }
+                >
+                  {t('Choose a meow')}
+                </Button>
+                {config.market.cat.ref !== null && (
+                  <Button
+                    variant="outline"
+                    className="h-7 shrink-0 text-xs"
+                    onClick={() =>
+                      void window.tracker.setConfig({
+                        market: { ...config.market, cat: { ...config.market.cat, ref: null } },
+                      })
+                    }
+                  >
+                    {t('No meow')}
+                  </Button>
+                )}
+              </div>
+              {/* There is no built-in meow to fall back to, so an unset file is
+                  a silent feature — worth a sentence, not a surprise. */}
+              {config.market.cat.ref === null && (
+                <p className="text-[0.625rem] text-muted-foreground">
+                  {t('Silent until a sound file is chosen.')}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+
+        <section className="space-y-1.5">
           <Label>{m.settings.log.title}</Label>
           <p className="text-[0.625rem] text-muted-foreground">{m.settings.log.blurb}</p>
           <div className="flex items-center gap-1">

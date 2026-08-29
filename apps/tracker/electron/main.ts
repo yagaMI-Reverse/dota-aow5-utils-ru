@@ -242,7 +242,15 @@ async function importSound(raw: unknown): Promise<{ ref: string } | { error: Pac
  * *because* something looks wrong, which is always after the fact.
  */
 const deliver = (channel: string, payload: unknown) => {
-  if (channel === 'tracker:event') history.record(payload as TrackerEvent);
+  if (channel === 'tracker:event') {
+    history.record(payload as TrackerEvent);
+    // The cat watch compares marker counts against a per-room baseline, so the
+    // watcher has to know which room the player is in — and the log feed is the
+    // only honest source of that.
+    const ev = payload as TrackerEvent;
+    if (ev.e === 'room_enter') market.setRoom(ev.room);
+    else if (ev.e === 'room_exit') market.setRoom(null);
+  }
   if (channel === 'tracker:skipped') {
     skippedLines.push(...(payload as SkippedLine[]));
     if (skippedLines.length > SKIPPED_LIMIT) skippedLines.splice(0, skippedLines.length - SKIPPED_LIMIT);
@@ -570,6 +578,7 @@ app.whenReady().then(async () => {
   });
 
   if (config.market.enabled) market.start();
+  market.setCatEnabled(config.market.cat.enabled);
 
   actions = {
     // Click-through is a window property, so this one never leaves main.
@@ -612,6 +621,7 @@ app.whenReady().then(async () => {
     if (patch.market !== undefined) {
       if (config.market.enabled) market.start();
       else market.stop();
+      market.setCatEnabled(config.market.cat.enabled);
     }
     // Opacity is the renderer's business now — it tints the panel rather than
     // the window — so there is nothing to push at the window here.

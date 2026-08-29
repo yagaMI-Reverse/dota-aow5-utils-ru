@@ -127,7 +127,11 @@ export const DEFAULTS: TrackerConfig = {
   // On, because the fork's whole reason for the feature is a player who asked
   // for it. It stays cheap while the Exchange is closed — a thumbnail and a
   // few pixel reads a second — and the settings switch is right there.
-  market: { enabled: true, sound: { enabled: true, ref: null, volume: 0.12, minPct: 30 } },
+  market: {
+    enabled: true,
+    sound: { enabled: true, ref: null, volume: 0.12, minPct: 30 },
+    cat: { enabled: true, ref: null, volume: 0.2 },
+  },
 };
 
 export const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
@@ -168,6 +172,7 @@ function readMarket(raw: unknown): TrackerConfig['market'] {
   const base = DEFAULTS.market;
   if (!isRecord(raw)) return { ...base, sound: { ...base.sound } };
   const s = isRecord(raw['sound']) ? raw['sound'] : {};
+  const cat = isRecord(raw['cat']) ? raw['cat'] : {};
   return {
     enabled: raw['enabled'] !== false,
     sound: {
@@ -175,6 +180,11 @@ function readMarket(raw: unknown): TrackerConfig['market'] {
       ref: typeof s['ref'] === 'string' && s['ref'] !== '' ? s['ref'] : null,
       volume: clamp(number(s['volume'], base.sound.volume), 0, 1),
       minPct: clamp(number(s['minPct'], base.sound.minPct), 0, 95),
+    },
+    cat: {
+      enabled: cat['enabled'] !== false,
+      ref: typeof cat['ref'] === 'string' && cat['ref'] !== '' ? cat['ref'] : null,
+      volume: clamp(number(cat['volume'], base.cat.volume), 0, 1),
     },
   };
 }

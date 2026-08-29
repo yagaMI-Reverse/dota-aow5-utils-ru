@@ -76,6 +76,8 @@ const api: TrackerApi = {
   onInteractive: (handler: (interactive: boolean) => void) => on<boolean>('tracker:interactive', handler),
   onSkipped: (handler: (skipped: SkippedLine[]) => void) => on<SkippedLine[]>('tracker:skipped', handler),
   onMarket: (handler: (frame: MarketFrame) => void) => on<MarketFrame>('tracker:market', handler),
+  onCat: (handler: (info: { room: string; base: number; seen: number }) => void) =>
+    on<{ room: string; base: number; seen: number }>('tracker:cat', handler),
   onAction: (handler: (action: ShortcutId) => void) => on<ShortcutId>('tracker:action', handler),
   onUnavailable: (handler: (chords: string[]) => void) => on<string[]>('tracker:unavailable', handler),
   onUpdate: (handler: (state: UpdateState) => void) => on<UpdateState>('tracker:update', handler),

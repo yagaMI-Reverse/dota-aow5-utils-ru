@@ -391,6 +391,16 @@ export interface TrackerConfig {
       volume: number;
       minPct: number;
     };
+    /**
+     * The event-cat watch: an extra green marker on the minimap over the
+     * room's learned baseline rings a sound of its own. `ref` null is silent
+     * until the player picks a file — there is no built-in meow.
+     */
+    cat: {
+      enabled: boolean;
+      ref: string | null;
+      volume: number;
+    };
   };
 }
 
@@ -636,6 +646,8 @@ export interface TrackerApi {
   onSkipped: (handler: (skipped: SkippedLine[]) => void) => Unsubscribe;
   /** Frames from the Exchange watcher. Only the market overlay listens. */
   onMarket: (handler: (frame: MarketFrame) => void) => Unsubscribe;
+  /** The event cat showed up on the minimap. Payload says where and how many. */
+  onCat: (handler: (info: { room: string; base: number; seen: number }) => void) => Unsubscribe;
   /**
    * A global shortcut was pressed that only the renderer can carry out.
    *

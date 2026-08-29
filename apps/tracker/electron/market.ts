@@ -19,7 +19,7 @@
  * the crop, the invert (the OCR engine reads dark-on-light far better) and
  * the ~90ms recognition.
  */
-import { BrowserWindow, desktopCapturer, nativeImage, screen } from 'electron';
+import { app, BrowserWindow, desktopCapturer, nativeImage, screen } from 'electron';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -51,6 +51,16 @@ const OCR_SCALE = 1.5;
 const ACTIVE_MS = 250;
 const IDLE_MS = 1200;
 
+/**
+ * The cat watch: how often the minimap corner is counted, and the calm-down
+ * after a ring. Event cats live for minutes; thirty seconds between rings is
+ * a reminder, not an alarm clock.
+ */
+const CAT_MS = 2500;
+const CAT_RING_COOLDOWN_MS = 30_000;
+/** How long after entering a room its baseline is still being learned. */
+const CAT_LEARN_MS = 8_000;
+
 export class MarketWatcher {
   private readonly ocr = new OcrService();
   private window: BrowserWindow | null = null;
@@ -70,6 +80,54 @@ export class MarketWatcher {
     path.join(os.tmpdir(), `aow5-market-${process.pid}-b.png`),
   ] as const;
   private flip = 0;
+
+  /** ---- the event-cat watch ---- */
+  private catEnabled = false;
+  private currentRoom: string | null = null;
+  private roomEnteredAt = 0;
+  private catBaselines = new Map<string, number>();
+  private catStreak = 0;
+  private catLastRing = 0;
+  private catNextAt = 0;
+  private baselinesLoaded = false;
+
+  private baselinePath(): string {
+    return path.join(app.getPath('userData'), 'cat-baseline.json');
+  }
+
+  private loadBaselines(): void {
+    if (this.baselinesLoaded) return;
+    this.baselinesLoaded = true;
+    try {
+      const raw: unknown = JSON.parse(fs.readFileSync(this.baselinePath(), 'utf8'));
+      if (typeof raw === 'object' && raw !== null) {
+        for (const [room, n] of Object.entries(raw as Record<string, unknown>)) {
+          if (typeof n === 'number' && Number.isFinite(n)) this.catBaselines.set(room, n);
+        }
+      }
+    } catch {
+      // First run, or a bad file: baselines relearn themselves either way.
+    }
+  }
+
+  private saveBaselines(): void {
+    try {
+      fs.writeFileSync(this.baselinePath(), JSON.stringify(Object.fromEntries(this.catBaselines)), 'utf8');
+    } catch {
+      // Losing a baseline costs one relearn pass, nothing more.
+    }
+  }
+
+  setCatEnabled(next: boolean): void {
+    this.catEnabled = next;
+  }
+
+  /** Main tells the watcher where the player is; the log already knows. */
+  setRoom(room: string | null): void {
+    this.currentRoom = room;
+    this.roomEnteredAt = Date.now();
+    this.catStreak = 0;
+  }
 
   /** Starts the loop and puts the lens window up. Idempotent. */
   start(): void {
@@ -186,6 +244,9 @@ export class MarketWatcher {
 
       if (!this.greenButtons(gate.toBitmap(), gate.getSize().width, gate.getSize().height)) {
         this.send({ t: Date.now(), screenW: sw, screenH: sh, open: false, lines: [] });
+        // The Exchange hides the minimap, so the cat watch runs exactly when
+        // the lens has nothing to read: while the player is out farming.
+        await this.watchCat(sw, sh);
         return;
       }
 
@@ -283,6 +344,108 @@ export class MarketWatcher {
       if (g > 80 && g > r + 20 && g > b + 20) hits++;
     }
     return hits >= 3;
+  }
+
+  /**
+   * Counts the green event markers on the minimap and rings on an extra one.
+   *
+   * There is no table of how many triangles each map draws — so, like the
+   * price ledger, the watcher learns it: the first seconds in a room teach
+   * that room its baseline (the minimum seen, so a cat already loose cannot
+   * inflate it), and afterwards two consecutive counts above baseline mean
+   * the event spawn is up.
+   */
+  private async watchCat(sw: number, sh: number): Promise<void> {
+    if (!this.catEnabled || this.currentRoom === null) return;
+    const now = Date.now();
+    if (now < this.catNextAt) return;
+    this.catNextAt = now + CAT_MS;
+    this.loadBaselines();
+
+    const fulls = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: sw, height: sh },
+    });
+    const frame = fulls[0]?.thumbnail;
+    if (!frame || frame.isEmpty()) return;
+
+    // The minimap corner: bottom-left, scaled off the 1440p reference.
+    const box = Math.round((420 * sh) / 1440);
+    const crop = frame.crop({ x: 0, y: sh - box, width: box, height: box });
+    const size = crop.getSize();
+    const bmp = crop.toBitmap(); // BGRA
+
+    const w = size.width;
+    const h = size.height;
+    const mask = new Uint8Array(w * h);
+    for (let i = 0, px = 0; px < w * h; px++, i += 4) {
+      const b = bmp[i] as number;
+      const g = bmp[i + 1] as number;
+      const r = bmp[i + 2] as number;
+      // The event triangle is pure bright green. Gold portals fail g>r*1.55,
+      // white swirls fail both ratios, the teal hero portrait fails g>b*1.55.
+      if (g > 140 && g > r * 1.55 && g > b * 1.55) mask[px] = 1;
+    }
+
+    // Connected components, 4-way; a marker is a blob, stray pixels are not.
+    const MIN_BLOB = Math.max(8, Math.round((sh / 1440) * 12));
+    let clusters = 0;
+    const stack: number[] = [];
+    for (let start = 0; start < mask.length; start++) {
+      if (mask[start] !== 1) continue;
+      let area = 0;
+      stack.push(start);
+      mask[start] = 2;
+      while (stack.length > 0) {
+        const px = stack.pop()!;
+        area++;
+        const x = px % w;
+        const neighbours = [px - w, px + w, x > 0 ? px - 1 : -1, x < w - 1 ? px + 1 : -1];
+        for (const n of neighbours) {
+          if (n >= 0 && n < mask.length && mask[n] === 1) {
+            mask[n] = 2;
+            stack.push(n);
+          }
+        }
+      }
+      if (area >= MIN_BLOB) clusters++;
+    }
+
+    const room = this.currentRoom;
+    const learned = this.catBaselines.get(room);
+    const learning = now - this.roomEnteredAt < CAT_LEARN_MS;
+    if (learning || learned === undefined) {
+      // The minimum observed is the baseline: a cat on screen during the
+      // learning window can only raise counts, never lower them.
+      if (clusters > 0 || learned !== undefined) {
+        this.catBaselines.set(room, learned === undefined ? clusters : Math.min(learned, clusters));
+        this.saveBaselines();
+      }
+      return;
+    }
+
+    if (clusters > learned) {
+      this.catStreak++;
+      if (this.catStreak >= 2 && now - this.catLastRing > CAT_RING_COOLDOWN_MS) {
+        this.catLastRing = now;
+        const win = this.window;
+        if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
+          try {
+            win.webContents.send('tracker:cat', { room, base: learned, seen: clusters });
+          } catch {
+            // Window mid-teardown; the cat will still be there next tick.
+          }
+        }
+      }
+    } else {
+      this.catStreak = 0;
+      // Self-correcting downwards: if the map genuinely has fewer markers
+      // than remembered, adopt the smaller truth.
+      if (clusters < learned && clusters > 0) {
+        this.catBaselines.set(room, clusters);
+        this.saveBaselines();
+      }
+    }
   }
 
   private send(frame: MarketFrame): void {
