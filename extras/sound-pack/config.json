@@ -1,0 +1,111 @@
+{
+  "source": "console",
+  "language": "ru",
+  "style": "minimal",
+  "logFile": "C:\\Users\\Public\\aow5-console.log",
+  "tracked": [],
+  "prices": {},
+  "halvePrices": true,
+  "trimLog": true,
+  "sounds": {
+    "enabled": true,
+    "volume": 0.15,
+    "limitSeconds": 3,
+    "byQuality": {
+      "5": "C:\\Users\\Public\\Music\\aow5-sounds\\ara-ara-akeno.mp3",
+      "6": "C:\\Users\\Public\\Music\\aow5-sounds\\ara-ara-lisa.mp3"
+    },
+    "byLevel": {},
+    "bindings": {
+      "item_M504": "builtin:jackpot"
+    },
+    "muted": [],
+    "minGold": null
+  },
+  "soundPacks": {},
+  "soundSearchUrl": "",
+  "opacity": 0.2,
+  "transparentBackground": true,
+  "uiScale": 1,
+  "mockSpeed": 1,
+  "hotkey": "Control+Alt+T",
+  "shortcuts": {
+    "actionKey": "Control",
+    "keys": {
+      "focus": "Alt+T",
+      "die": "E"
+    }
+  },
+  "overlays": {
+    "farm": {
+      "collapsed": true,
+      "size": {
+        "width": 600,
+        "height": 690
+      },
+      "position": {
+        "x": 7,
+        "y": 219
+      }
+    },
+    "recipe": {
+      "collapsed": false,
+      "size": {
+        "width": 609,
+        "height": 120
+      },
+      "position": null
+    },
+    "history": {
+      "collapsed": false,
+      "size": {
+        "width": 620,
+        "height": 760
+      },
+      "position": null
+    },
+    "settings": {
+      "collapsed": false,
+      "size": {
+        "width": 460,
+        "height": 720
+      },
+      "position": null
+    },
+    "market": {
+      "collapsed": false,
+      "size": {
+        "width": 1280,
+        "height": 800
+      },
+      "position": null
+    }
+  },
+  "recipe": [],
+  "recipeDone": [],
+  "recipeExpand": [],
+  "recipeHave": {},
+  "cards": [
+    "session",
+    "sessionGold",
+    "sessionBest",
+    "mapTime",
+    "mapGold",
+    "mapGoldAverage"
+  ],
+  "autoResume": true,
+  "market": {
+    "enabled": true,
+    "sound": {
+      "enabled": false,
+      "ref": null,
+      "volume": 0.12,
+      "minPct": 30
+    },
+    "cat": {
+      "enabled": true,
+      "ref": "C:\\Users\\Public\\Music\\aow5-sounds\\nya-catgirl.mp3",
+      "volume": 0.06
+    }
+  }
+}
