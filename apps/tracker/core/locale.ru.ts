@@ -325,6 +325,10 @@ export const ru: Record<string, string> = {
   'No meow': 'Убрать звук',
   'Silent until a sound file is chosen.': 'Молчит, пока не выбран файл со звуком.',
 
+  // Ручной учёт материалов (купленное на рынке)
+  'Count one bought': 'Засчитать покупку',
+  'Bought on the market: click +1, right-click −1': 'Куплено на рынке: клик +1, ПКМ −1',
+
   // Линза биржи
   'Exchange lens': 'Линза биржи',
   'Badge Exchange listings with a verdict': 'Помечать лоты биржи вердиктом',

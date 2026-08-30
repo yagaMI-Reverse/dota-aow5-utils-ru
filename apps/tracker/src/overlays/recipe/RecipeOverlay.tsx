@@ -80,7 +80,27 @@ export function RecipeOverlay() {
   const targets = useMemo(() => config?.recipe ?? [], [config]);
   const ticked = useMemo(() => new Set(config?.recipeDone ?? []), [config]);
   const expanded = useMemo(() => new Set(config?.recipeExpand ?? []), [config]);
-  const { groups, craftable, graph } = useRecipes(targets, state.items, ticked, expanded);
+  const manual = useMemo(() => config?.recipeHave ?? {}, [config]);
+
+  /*
+   * What the player holds: what dropped on watch, plus what they counted in by
+   * hand — the market purchases the log never sees. Merged out here so the
+   * session map stays the log's own truth, and keyed by value because `manual`
+   * is a fresh object on every config broadcast, several a second while a
+   * settings slider moves.
+   */
+  const manualKey = Object.entries(manual)
+    .sort()
+    .map(([id, n]) => `${id}:${n}`)
+    .join(',');
+  const have = useMemo(() => {
+    const merged = new Map(state.items);
+    for (const [id, n] of Object.entries(manual)) merged.set(id, (merged.get(id) ?? 0) + n);
+    return merged;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.items, manualKey]);
+
+  const { groups, craftable, graph } = useRecipes(targets, have, ticked, expanded);
   const [picking, setPicking] = useState(false);
   const archiveRates = useArchiveRates();
   const column = useRef<HTMLDivElement | null>(null);
@@ -153,6 +173,35 @@ export function RecipeOverlay() {
     [ticked],
   );
 
+  /** Count a material obtained off the record — a market purchase, mostly. */
+  const bump = useCallback(
+    (id: string, by: number) => {
+      const next = { ...manual };
+      const n = (next[id] ?? 0) + by;
+      if (n > 0) next[id] = n;
+      else delete next[id];
+      void window.tracker.setConfig({ recipeHave: next });
+    },
+    [manual],
+  );
+
+  /*
+   * Hand counts outlive their reason: sweep the entries no line asks about,
+   * so a target re-added weeks later starts honest instead of pre-filled with
+   * stale purchases. Only once the graph is up — before that, every id looks
+   * unasked-for.
+   */
+  useEffect(() => {
+    if (graph === null || config == null) return;
+    const wanted = new Set<string>();
+    for (const group of groups) for (const row of group.rows) wanted.add(row.id);
+    const sweep = Object.keys(manual).filter((id) => !wanted.has(id));
+    if (sweep.length === 0) return;
+    const next = { ...manual };
+    for (const id of sweep) delete next[id];
+    void window.tracker.setConfig({ recipeHave: next });
+  }, [graph, groups, manual, config]);
+
   return (
     <div ref={column} className="flex h-fit w-fit flex-col gap-1 p-1">
       {/*
@@ -175,9 +224,11 @@ export function RecipeOverlay() {
           items={items}
           m={m}
           rates={archiveRates}
+          manual={manual}
           onAdjust={adjust}
           onToggle={toggleTicked}
           onExpand={toggleExpanded}
+          onBump={bump}
         />
       ))}
 
@@ -233,9 +284,11 @@ function Line({
   items,
   m,
   rates,
+  manual,
   onAdjust,
   onToggle,
   onExpand,
+  onBump,
 }: {
   group: RecipeGroup;
   interactive: boolean;
@@ -245,9 +298,12 @@ function Line({
   m: Messages;
   /** Drop rates from the archive, or null when there is no archive to read. */
   rates: ArchiveRates | null;
+  /** Hand-counted materials, for marking which tiles carry one. */
+  manual: Record<string, number>;
   onAdjust: (id: string, by: number) => void;
   onToggle: (id: string) => void;
   onExpand: (id: string) => void;
+  onBump: (id: string, by: number) => void;
 }) {
   const { id, count, derived, rows, complete } = group;
 
@@ -304,8 +360,10 @@ function Line({
           craftable={craftable(row.id)}
           items={items}
           m={m}
+          manual={manual[row.id] ?? 0}
           onToggle={onToggle}
           onExpand={onExpand}
+          onBump={onBump}
         />
       ))}
 
@@ -394,8 +452,10 @@ function IngredientTile({
   craftable,
   items,
   m,
+  manual,
   onToggle,
   onExpand,
+  onBump,
 }: {
   row: RequirementProgress;
   interactive: boolean;
@@ -403,8 +463,11 @@ function IngredientTile({
   craftable: boolean;
   items: ItemTable;
   m: Messages;
+  /** How many of this the player counted in by hand. Already inside `row.have`. */
+  manual: number;
   onToggle: (id: string) => void;
   onExpand: (id: string) => void;
+  onBump: (id: string, by: number) => void;
 }) {
   const info = items.get(row.id);
   const shown = Math.min(row.have, row.count);
@@ -423,6 +486,28 @@ function IngredientTile({
           className={cn(CHIP, 'absolute -start-1 -top-1 z-10 p-0.5 text-muted-foreground hover:text-foreground')}
         >
           <Hammer className="size-4" />
+        </button>
+      )}
+      {/* The market's half of the count. A purchase never reaches the log, so
+          this is where it gets counted — by the player, on the tile itself.
+          Gold once it holds a number, so a hand-adjusted count is visible. */}
+      {interactive && (
+        <button
+          type="button"
+          onClick={() => onBump(row.id, 1)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onBump(row.id, -1);
+          }}
+          aria-label={ft('Count one bought')}
+          title={ft('Bought on the market: click +1, right-click −1')}
+          className={cn(
+            CHIP,
+            'absolute -end-1 -top-1 z-10 p-0.5',
+            manual > 0 ? 'text-gold hover:text-foreground' : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <Plus className="size-4" />
         </button>
       )}
     <button

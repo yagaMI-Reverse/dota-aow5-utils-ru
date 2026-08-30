@@ -1,7 +1,7 @@
 {
   "name": "aow5-tracker",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Always-on-top farm tracker overlay for the Dota 2 custom game Age of Weapons 5",
   "main": "out/main/main.js",

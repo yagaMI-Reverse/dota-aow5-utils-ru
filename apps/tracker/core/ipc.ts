@@ -344,6 +344,15 @@ export interface TrackerConfig {
    */
   recipeExpand: string[];
   /**
+   * Materials obtained outside the log's sight, counted by hand.
+   *
+   * The drop counter never sees a market purchase — the game writes nothing
+   * to the log for one — so the plus on an ingredient tile is how a bought
+   * material gets counted, and this is where those clicks live. Additive to
+   * whatever dropped; entries for items no recipe asks about are swept.
+   */
+  recipeHave: Record<string, number>;
+  /**
    * Which stat cards the farm HUD draws.
    *
    * A set, not an arrangement: the draw order is `CARD_IDS` and is not the

@@ -120,6 +120,7 @@ export const DEFAULTS: TrackerConfig = {
   recipe: [],
   recipeDone: [],
   recipeExpand: [],
+  recipeHave: {},
   cards: [...DEFAULT_CARDS],
   // On: the failure it prevents — an evening measured as zero — costs more
   // than the one it can cause, which is a clock you have to stop again.
@@ -222,6 +223,16 @@ function readView(id: OverlayId, raw: unknown, legacyBounds: unknown): OverlayVi
 /** A list of item ids, tolerating anything else the file happens to hold. */
 const readIds = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : [];
+
+/** Item id -> how many were obtained off the record. Whole and positive, or dropped. */
+const readHave = (raw: unknown): Record<string, number> => {
+  if (!isRecord(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [id, n] of Object.entries(raw)) {
+    if (typeof n === 'number' && Number.isInteger(n) && n > 0) out[id] = n;
+  }
+  return out;
+};
 
 /**
  * Item id -> the gold the player says it is worth.
@@ -326,6 +337,7 @@ export function loadConfig(): TrackerConfig {
     recipe: readTargets(raw['recipe']),
     recipeDone: readIds(raw['recipeDone']),
     recipeExpand: readIds(raw['recipeExpand']),
+    recipeHave: readHave(raw['recipeHave']),
     // Absent in a file written before the HUD's cards could be turned off,
     // which is the same thing as asking for the defaults.
     cards: readCards(raw['cards']),
