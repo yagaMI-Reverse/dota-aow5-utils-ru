@@ -329,6 +329,11 @@ export const ru: Record<string, string> = {
   'Count one bought': 'Засчитать покупку',
   'Bought on the market: click +1, right-click −1': 'Куплено на рынке: клик +1, ПКМ −1',
 
+  // Поиск по настройкам
+  'Search the settings…': 'Поиск по настройкам…',
+  'Clear the search': 'Очистить поиск',
+  'Nothing matches': 'Ничего не нашлось',
+
   // Линза биржи
   'Exchange lens': 'Линза биржи',
   'Badge Exchange listings with a verdict': 'Помечать лоты биржи вердиктом',

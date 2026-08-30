@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Download,
@@ -231,9 +231,56 @@ export function Settings({
     setPrices(next);
   };
 
+  /*
+   * The finder over everything below. A section matches on the text it
+   * actually renders — titles and hints alike, in whatever language the panel
+   * currently speaks — so there is no keyword table to maintain and fork
+   * sections are searchable for free. Done DOM-side on purpose: hiding is a
+   * style, so every control keeps its React state while filtered out, and it
+   * reruns on every render because the sections' words change under it (a
+   * language switch, an update status). The setState below bails out when the
+   * answer has not changed, so no loop.
+   */
+  const [finder, setFinder] = useState('');
+  const [noHits, setNoHits] = useState(false);
+  const searchBody = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const root = searchBody.current;
+    if (root === null) return;
+    const q = finder.trim().toLowerCase();
+    let visible = 0;
+    for (const sec of root.querySelectorAll<HTMLElement>('section')) {
+      const hit = q === '' || (sec.textContent ?? '').toLowerCase().includes(q);
+      sec.style.display = hit ? '' : 'none';
+      if (hit) visible += 1;
+    }
+    setNoHits(q !== '' && visible === 0);
+  });
+
   return (
     <ScrollArea className="min-h-0 flex-1" viewportClassName="hud-fade-bottom">
-      <div className="space-y-5 pe-2 pb-4 text-xs">
+      <div ref={searchBody} className="space-y-5 pe-2 pb-4 text-xs">
+        {/* Not a <section>, or the filter below would hide its own controls. */}
+        <div className="relative">
+          <Search className="pointer-events-none absolute start-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={finder}
+            onChange={(event) => setFinder(event.target.value)}
+            placeholder={t('Search the settings…')}
+            className="h-7 ps-7 text-xs"
+          />
+          {finder !== '' && (
+            <button
+              type="button"
+              onClick={() => setFinder('')}
+              aria-label={t('Clear the search')}
+              className="absolute end-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+        {noHits && <p className="text-[0.625rem] text-muted-foreground">{t('Nothing matches')}</p>}
         {/*
           Above everything, and it is the one section whose position is not
           about farming.
